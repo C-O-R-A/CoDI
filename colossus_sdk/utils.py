@@ -10,6 +10,7 @@ def serialize_commands(commands, space, rt):
         commands: list of floats representing the command values
         rt: True for real-time, False for non-real-time
         """
+
         command_string = f"{space} {rt} "
         for i in commands:
             command_string += f"{i:.4f} "
@@ -17,13 +18,16 @@ def serialize_commands(commands, space, rt):
 
         return command_string
 
-def parse_states(state_string):
+def parse_pose_feedback(state_string):
         """
-        Parse the state string received from the Colossus arm into a dictionary.
+        Parse pose string into appropriately sized array.
         """
 
-        state_values = list(map(float, state_string.strip().split()))
-        
-        state_array = np.array([state_values[0:5], state_values[6:11]]) 
-         
-        return 
+        string_array=np.fromstring(state_string, dtype=np.float32, sep=' ')
+
+        # Divide string array into rows of pose vectors (x, y, z, rx, ry, rz) or (joint1, joint2, joint3, joint4, joint5, joint6)
+        rows = int(len(string_array)/6) 
+
+        string_array=string_array.reshape((3,6))
+
+        return string_array

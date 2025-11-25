@@ -80,3 +80,8 @@ class ColossusClient:
         except socket.error as e:
             raise ConnectionError(f"Failed to send command to Colossus arm: {e}")
         return
+    
+class GuiClient(ColossusClient):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        
