@@ -46,20 +46,20 @@ pyproject.toml
 ### Install directly from GitHub
 
 ```bash
-pip install git+https://github.com/yourusername/colossus-sdk.git@main
+pip install git+https://github.com/yourusername/CoDI.git@main
 ````
 
 Or install a specific release:
 
 ```bash
-pip install git+https://github.com/yourusername/colossus-sdk.git@v0.1.0
+pip install git+https://github.com/yourusername/CoDI.git@v0.1.0
 ```
 
 ### Local installation (development)
 
 ```bash
-git clone https://github.com/yourusername/colossus-sdk.git
-cd colossus-sdk
+git clone https://github.com/yourusername/CoDI.git
+cd codi
 pip install -e .
 ```
 

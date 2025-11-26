@@ -1,7 +1,7 @@
 """CoDI (Colossus Desktop Interface)
 
 CoDI is an SDK developed by ... to interface with the open source Colossus cobot.
-    https://github.com/machine0herald/colossus_sdk
+    https://github.com/machine0herald/CoDI
 ;-)
 """
 
@@ -15,10 +15,6 @@ import matplotlib
 
 import utils as ut
 import exeptions
-
-'''
-resources: https://github.com/UniversalRobots/URScript_Examples/blob/main/socket-server/hmi-example.py
-'''
 
 class ColossusClient:
     def __init__(self, **kwargs):
