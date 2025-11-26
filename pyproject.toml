@@ -10,3 +10,5 @@ dependencies = [
   "Pillow",
   "matplotlib",
 ]
+
+packages=["codi"]
