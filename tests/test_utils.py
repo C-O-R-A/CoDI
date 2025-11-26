@@ -1,9 +1,9 @@
 import numpy as np
 import json as js
 import sys
-sys.path.append("/home/matth/Desktop/Colossus/Software/colossus_sdk")
+sys.path.append("/home/matth/Desktop/Colossus/Software/codi")
 
-import colossus_sdk.utils as ut
+import codi.utils as ut
 
 def test_encode_commands():
     assert (ut.encode_commands(np.array([1.11,2.22,3.33,4.44,5.55,6.66], float), 'TS', False, 'position') 
