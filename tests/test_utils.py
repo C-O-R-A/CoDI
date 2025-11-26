@@ -1,7 +1,7 @@
 import numpy as np
 import json as js
 import sys
-sys.path.append("/home/matth/Desktop/Colossus/Software/codi")
+sys.path.append("/home/matth/Desktop/Colossus/Software/src/codi")
 
 import codi.utils as ut
 
