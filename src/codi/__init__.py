@@ -1,4 +1,4 @@
-from client import ColossusClient, GuiClient
+from .client import ColossusClient, GuiClient
 
 __all__ = [
     "ColossusClient"
