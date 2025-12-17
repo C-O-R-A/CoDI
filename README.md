@@ -1,6 +1,6 @@
 # CoDI (CORA Desktop Interface)
 
-A Python SDK for communicating with the Colossus robotic arm over TCP sockets.  
+A Python SDK for communicating with the Cora robotic arms over TCP sockets.  
 The package provides:
 
 - `ColossusClient` for command transmission, state feedback, and video streaming  
