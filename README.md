@@ -3,7 +3,7 @@
 A Python SDK for communicating with the Cora robotic arms over TCP sockets.  
 The package provides:
 
-- `ColossusClient` for command transmission, state feedback, and video streaming  
+- `CoraClient` for command transmission, state feedback, and video streaming  
 - `GuiClient` for a basic Tkinter-based interface  
 - Utility functions for encoding commands and decoding robot state messages  
 
@@ -46,19 +46,19 @@ pyproject.toml
 ### Install directly from GitHub
 
 ```bash
-pip install git+https://github.com/machine0herald/CoDI.git@main
+pip install git+https://github.com/C-O-R-A/CoDI.git@main
 ````
 
 Or install a specific release:
 
 ```bash
-pip install git+https://github.com/machine0herald/CoDI.git@v0.1.0
+pip install git+https://github.com/C-O-R-A/CoDI.git@v0.1.0
 ```
 
 ### Local installation (development)
 
 ```bash
-git clone https://github.com/machine0herald/CoDI.git
+git clone https://github.com/C-O-R-A/CoDI.git
 cd codi
 pip install -e .
 ```
@@ -79,9 +79,9 @@ Both will be installed automatically when installing via `pip`.
 ### Connecting and sending commands
 
 ```python
-from codi.client import ColossusClient
+from codi.client import CoraClient
 
-client = ColossusClient(
+client = CoraClient(
     host="192.168.0.10",
     video_port=8001,
     command_port=8002,
