@@ -1,6 +1,6 @@
-from .client import ColossusClient, GuiClient
+from .client import CoraClient, GuiClient
 
 __all__ = [
-    "ColossusClient"
+    "CoraClient",
     "GuiClient"
     ]
