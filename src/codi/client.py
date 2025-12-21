@@ -18,6 +18,7 @@ import exeptions
 
 class ColossusClient:
     def __init__(self, **kwargs):
+        self._running = False
         self.arm_host = kwargs.get("host")
         self.video_port = kwargs.get('video_port')
         self.command_port = kwargs.get('command_port')
@@ -33,9 +34,13 @@ class ColossusClient:
         self.video_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)        # TCP socket for video
         self.command_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)     # TCP socket for commands
         self.states_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)       # TCP socket for states
-        self._running = False
 
-    def connect(self):
+    def configure_sockets(self):
+        self.video_socket.shutdown(socket.SHUT_WR)
+        self.states_socket.shutdown(socket.SHUT_WR)
+        self.command_socket.shutdown(socket.SHUT_RD)
+
+    def  connect(self):
         try:
             self.command_socket.connect((self.arm_host, self.command_port))
             self.video_socket.connect((self.arm_host, self.video_port))
@@ -43,6 +48,8 @@ class ColossusClient:
         
         except socket.error as e:
             raise ConnectionError(f"Failed to connect to Colossus arm: {e}")
+        
+        self.configure_sockets()
         
         self._running = True
         self._start_threads()
@@ -63,20 +70,26 @@ class ColossusClient:
         
         print("Stopping Colossus client...")        
         self._running = False
-        if self.command_socket:
-            self.command_socket.close()
-        if self.video_socket:
-            self.video_socket.close()
-        if self.states_socket:
-            self.states_socket.close()
+        
+        for sock in (self.command_socket, self.video_socket, self.states_socket):
+            if sock:
+                try:
+                    sock.shutdown(socket.SHUT_RDWR)
+                    sock.close()
+                except OSError:
+                    pass
+
         return
     
     def receive_frame(self):
         chunk_size = 8192
         while self._running:
             length_bytes = self.video_socket.recv(4)
+            ## Get the frame
 
-            if self.running is False:
+            ## Decode the frame from bytes to image
+
+            if not self._running:
                 break
         return
     
@@ -88,10 +101,11 @@ class ColossusClient:
         """
         
         while self._running:
+            if not self._running:
+                break            
             raw_states = self.states_socket.recv(1024)
-            space, self.states = ut.decode_pose_feedback(raw_states)
-            if self._running is False:
-                break
+            self.state_space, self.states = ut.decode_pose_feedback(raw_states)
+
     
     def get_states(self, print=True):
         """
@@ -132,7 +146,7 @@ class ColossusClient:
 class GuiClient(ColossusClient):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.root = tk.TK
+        self.root = tk.TK()
         self.root.title('Colossus Control Panel')
 
         self._build_layout()
