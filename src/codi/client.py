@@ -115,7 +115,7 @@ class CoraClient:
         print(self.states)
         return self.states
 
-    async def send_command(self, command, space, rt, interface_type, print=True, *args):
+    async def send_command(self, command, space, rt, interface_type, print=True, gripper_command=None):
         """
         Takes the command array and descriptive information, \n
         encodes it into json format and sends it as raw bytes \n
@@ -141,7 +141,7 @@ class CoraClient:
         if print:
             print(f"Sending {interface_type} command to Cora, {command} in {space} space.")
 
-        gripper_command = args[0] if args else np.array(0.0)  # get gripper command from args
+        gripper_command = gripper_command if gripper_command is not None else np.array(0.0)  # get gripper command from args
 
         command_string = ut.encode_commands(command, gripper_command, space, rt, interface_type)
         try:
