@@ -1,6 +1,12 @@
 import numpy as np
 import json as js
 
+'''
+TODO: we can use this module on the desktop as well as on the robot. 
+add utility fucntions for encoding states and decoding commands as needed. 
+also add options for reading/writing from files for offline testing.
+'''
+
 def bytes_to_image(byte_data, width, height):
       return 
 
@@ -70,3 +76,4 @@ def decode_pose_feedback(raw_json_states):
         status = json_states["status"]
 
         return status, space, states_array
+
