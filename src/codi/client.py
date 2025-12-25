@@ -13,8 +13,8 @@ import socket
 import threading
 import matplotlib
 
-import utils as ut
-import exeptions
+from . import utils as ut
+from . import exeptions
 
 class CoraClient:
     def __init__(self, **kwargs):
