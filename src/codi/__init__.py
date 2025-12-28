@@ -1,9 +1,9 @@
-from .client import CoraClient, GuiClient
+from .client import CoraClient, CoraServer
 from .runtime import start_client, stop_client
 
 __all__ = [
     "CoraClient",
-    "GuiClient",
+    "CoraServer",
     "start_client",
     "stop_client"
     ]
