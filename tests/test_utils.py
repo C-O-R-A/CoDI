@@ -6,12 +6,13 @@ from pathlib import Path as pth
 ROOT = pth().resolve().parents[1]
 sys.path.append(ROOT)
 
-import src.codi.utils as ut
+import codi.src.codi.protocol as ut
 
 def test_encode_commands():
-    assert (ut.encode_commands(np.array([1.11,2.22,3.33,4.44,5.55,6.66], float), 'TS', False, 'position') 
+    command = np.array(([1.11,2.22,3.33],[4.44,5.55,6.66]))
+    assert (ut.encode_commands(np.array(command, float), 'TS', False, 'position') 
             == 
-            b'{"space": "TS", "rt": false, "interface_type": "position", "shape": [6], "dtype": "float64", "data": [1.11, 2.22, 3.33, 4.44, 5.55, 6.66]}')
+            b'{"space": "TS", "rt": false, "interface_type": "position", "shape": [6], "dtype": "float64", "data": [[1.11, 2.22, 3.33], [4.44, 5.55, 6.66]]}')
     
 
 def test_decode_states():
