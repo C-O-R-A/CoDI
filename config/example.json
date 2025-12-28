@@ -1,0 +1,8 @@
+{
+  "host": "cora_robot.local",
+  "video_port": 5000,
+  "command_port": 5001,
+  "states_port": 5002,
+  "config_port": 5003,
+  "vision_port": 5004
+}

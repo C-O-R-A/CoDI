@@ -1,0 +1,5 @@
+host: cora-robot.local  # use the hostname of your robot, or IP
+video_port: 5000         # TCP port for video streaming
+command_port: 5001       # TCP port for sending commands
+states_port: 5002        # TCP port for receiving robot states
+config_port: 5003        # TCP port for configuration / parameters
