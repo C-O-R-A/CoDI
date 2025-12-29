@@ -138,6 +138,23 @@ class CoraInterface:
         self.cleanup()
 
         return
+    
+    def _receive(self, connection):
+        # Receive length prefix
+        raw_length = connection.recv(4)
+        length = int.from_bytes(raw_length, 'big')
+
+        # Receive data 
+        raw_payload = connection.recv(length)
+        
+        if not raw_payload:
+            return None
+        return raw_payload
+    
+    def _send(self, connection, payload: bytes):
+        length = len(payload)
+        connection.sendall(length.to_bytes(4, 'big') + payload)
+
 
 class CoraClient(CoraInterface):
     '''        
@@ -386,8 +403,8 @@ class CoraClient(CoraInterface):
             print(f"Sending {interface_type} command to Cora, {command} in {space} space.")
 
         gripper_command = gripper_command if gripper_command is not None else np.array([0.0])  # get gripper command from args
-
         command_string = pt.encode_commands(command, gripper_command, space, rt, interface_type)
+
         try:
             self.command_socket.sendall(command_string.encode('utf-8'))
         except socket.error as e:
@@ -410,6 +427,8 @@ class CoraServer(CoraInterface):
         self.video_conn = None
         self.vision_conn = None
         self.config_conn = None
+        self.command_msg = None
+        self.config_msg = None
         return
 
     def connect(self):
@@ -474,30 +493,37 @@ class CoraServer(CoraInterface):
             except OSError:
                 pass
 
-    
     def receive_command(self):
-        raw = self.command_conn.recv(4096)
-        if not raw:
-            return None
+        while self._running:
+            payload = self._receive(connection=self.command_conn)
+            if payload is None:
+                continue  # connection closed or no data 
+            decoded_command = pt.decode_command(payload)
 
-        command = pt.decode_command(raw)
-        return command
+            with self.command_lock:
+                self.command_msg = decoded_command
+
+    def get_command(self):
+        return self.command_msg
+    
+    def receive_config(self):
+        while self._running:   
+            payload = self._receive(connection=self.config_conn)
+            if payload is None:
+                continue  # connection closed or no data 
+            decoded_config = pt.decode_configs(payload)
+            
+            with self.config_lock:
+                self.config_msg = decoded_config
+
+    def get_config(self):
+        return self.config_msg
     
     def send_state(self, state_msg):
         payload = pt.encode_pose_feedback(state_msg)
-        self.states_conn.sendall(payload)
+        self._send(connection=self.states_conn, payload=payload)
 
     def send_vision_poses(self, poses):
         payload = pt.encode_vision_poses(poses)
-        self.vision_conn.sendall(payload)
-    
-    def receive_config(self):
-        raw = self.config_conn.recv(1024)
-        if not raw:
-            return None
-
-        config = pt.decode_configs(raw)
-        return config
-
-
+        self._send(connection=self.vision_conn, payload=payload)
 
