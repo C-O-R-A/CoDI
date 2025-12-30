@@ -8,6 +8,7 @@ CoDI is an SDK developed by ... to interface with the open source Cora cobot.
 import numpy as np
 import tkinter as tk
 import socket
+import select 
 import threading
 from pathlib import Path
 from yaml import safe_load, dump
@@ -42,6 +43,7 @@ class CoraInterface:
             command_port: port for sending/receiving commands \n
             states_port: port for sending/receiving states \n
             config_port: port for setting/receiving robot param configs \n
+            vision_port: port for receiving marker poses
         '''
         
         self._running = False 
@@ -84,7 +86,7 @@ class CoraInterface:
         self.states_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)          # TCP socket for states
         self.vision_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)          # TCP socket for vision
         self.configuration_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)   # TCP socket for configurations
-
+        self.sockets = [self.command_socket, self.states_socket, self.video_socket, self.vision_socket, self.vision_socket, self.configuration_socket]
         try:
             self.arm_host = socket.gethostbyname(self.host)
 
@@ -99,20 +101,21 @@ class CoraInterface:
         except ValueError:
             raise ValueError(f"Status '{status}' unknown")
 
-        
+    def _is_alive_handler(self):
+        while self._running:
+            if not any ([self.states_alive, self.commands_alive, self.config_alive, self.video_alive, self.vision_alive]):
+                self._kill() 
+
     def _activate(self):
         '''
         Docstring for _connect
         
         :param self: Description
         '''
-        self.connect()
-        
-        self.configure()
-
-        self.setup()  
-
         self._running = True
+        self.connect()
+        self.configure()
+        self.setup()  
         return
     
     def _kill(self):
@@ -126,7 +129,7 @@ class CoraInterface:
         self._running = False
         
         # End the sockets
-        for sock in (self.command_socket, self.video_socket, self.states_socket, self.configuration_socket):
+        for sock in self.sockets:
             if sock:
                 try:
                     sock.shutdown(socket.SHUT_RDWR)
@@ -139,6 +142,24 @@ class CoraInterface:
 
         return
     
+    def _is_socket_alive(self, sock, timeout=0):
+        readable, _, errored = select.select([sock], [], [sock], timeout)
+
+        # Error list means the socket is dead
+        if errored:
+            return False
+
+        if readable:
+            try:
+                data = sock.recv(1, socket.MSG_PEEK)
+                if not data:
+                    return False  # orderly close
+            except OSError:
+                return False  # reset / broken pipe
+
+        return True
+    
+        
     def _receive(self, connection):
         # Receive length prefix
         raw_length = connection.recv(4)
@@ -164,11 +185,16 @@ class CoraClient(CoraInterface):
     '''
 
     def __init__(self, **kwargs):
-        super().__init__(self, **kwargs)        
+        super().__init__(**kwargs)        
         self.use_controller = kwargs.get("use_controller", False)
         self.use_camera = kwargs.get("use_camera", False)
         self.use_vision = kwargs.get("use_vision", False)
         self.threads = dict()
+        self.states_alive = False
+        self.commands_alive = False
+        self.config_alive = False
+        self.video_alive = False
+        self.vision_alive = False
     
     def connect(self):
         try:
@@ -177,6 +203,11 @@ class CoraClient(CoraInterface):
             self.vision_socket.connect((self.host, self.vision_port))
             self.states_socket.connect((self.host, self.states_port))
             self.configuration_socket.connect((self.host, self.config_port))
+            self.states_alive = True
+            self.commands_alive = True
+            self.config_alive = True
+            self.video_alive = True
+            self.vision_alive = True
         
         except socket.error as e:
             raise ConnectionError(f"Failed to connect to Cora arm: {e}")
@@ -187,6 +218,7 @@ class CoraClient(CoraInterface):
         self.command_socket.shutdown(socket.SHUT_RD)  
 
     def setup(self):
+        threading.Thread(target=self._is_alive_handler, daemon=True,name="alive handler").start() 
         self.init_threads()
         self.update_options()
 
@@ -208,21 +240,21 @@ class CoraClient(CoraInterface):
                 "daemon": True
             },
 
-            "commands":{
-                "target": self.send_command,
-                "thread": None,
-                "stop_event": threading.Event(),
-                "active": False,
-                "daemon": True
-            },
+            # "commands":{
+            #     "target": self.send_command,
+            #     "thread": None,
+            #     "stop_event": threading.Event(),
+            #     "active": False,
+            #     "daemon": True
+            # },
 
-            "configuration":{
-                "target": self.configure_robot,
-                "thread": None,
-                "stop_event": threading.Event(),
-                "active": False,
-                "daemon": True
-            },
+            # "configuration":{
+            #     "target": self.configure_robot,
+            #     "thread": None,
+            #     "stop_event": threading.Event(),
+            #     "active": False,
+            #     "daemon": True
+            # },
 
             "vision_poses":{
                 "target": self.receive_vision_poses,
@@ -311,8 +343,8 @@ class CoraClient(CoraInterface):
 
         if True:  # always listen to these
             active.add("states")
-            active.add("configuration")
-            active.add("commands")
+            # active.add("configuration")
+            # active.add("commands")
 
         self.reconcile_threads(active)
 
@@ -327,7 +359,11 @@ class CoraClient(CoraInterface):
         
         while self._running:
             if not self._running:
-                break            
+                break    
+            if not self._is_socket_alive(self.states_socket):
+                self.states_alive = False
+                print('states socket died')
+                break
             raw_states = self.states_socket.recv(1024)
             move_status,self.state_space, self.states = pt.decode_pose_feedback(raw_states)
             self._set_move_status(move_status)
@@ -342,6 +378,10 @@ class CoraClient(CoraInterface):
         while self._running:
             if not self._running:
                 break
+            if not self._is_socket_alive(self.vision_socket):
+                self.vision_alive = False
+                print('vision socket died')
+                break            
             raw_poses = self.vision_socket.recv(1024)
             self.aruco_poses = pt.decode_aruco_poses(raw_poses)
 
@@ -353,6 +393,10 @@ class CoraClient(CoraInterface):
         Continuously receive frames from the video socket and decode them.
         """
         while self._running:
+            if not self._is_socket_alive(self.video_socket):
+                self.video_alive = False
+                print('video socket died')
+                break
             try:
                 raw_length = self.video_socket.recv(4)
                 if not raw_length:
@@ -400,6 +444,10 @@ class CoraClient(CoraInterface):
         
         :param print: If True, prints the command being sent.\n
         """
+        if not self._is_socket_alive(self.command_socket):
+                self.commands_alive = False
+                print('command socket died')
+                return
         if print:
             print(f"Sending {interface_type} command to Cora, {command} in {space} space.")
 
@@ -417,6 +465,10 @@ class CoraClient(CoraInterface):
         :param self: Description
         :param kwargs: Description
         '''
+        if not self._is_socket_alive(self.config_socket):
+                self.config_alive = False
+                print('config socket died')
+                return
         self.use_controller = kwargs.get("use_controller")
         self.use_camera = kwargs.get("use_camera")
         self.use_vision = kwargs.get("use_vision")
@@ -433,7 +485,7 @@ class CoraServer(CoraInterface):
     # TODO: Implement cora server derived class with appropriate methods
 
     def __init__(self, **kwargs):
-        super().__init__(self, **kwargs)
+        super().__init__(**kwargs)
         self.command_conn = None
         self.states_conn = None
         self.video_conn = None
@@ -441,6 +493,9 @@ class CoraServer(CoraInterface):
         self.config_conn = None
         self.command_msg = None
         self.config_msg = None
+        self.command_lock = threading.Lock()
+        self.config_lock = threading.Lock()
+
         return
 
     def connect(self):
@@ -454,29 +509,61 @@ class CoraServer(CoraInterface):
         self.states_socket.listen(1)
         self.video_socket.listen(1)
         self.vision_socket.listen(1)
-        self.configuration_socket.listen(1)
-        
-    
+        self.configuration_socket.listen(1)       
+
     def accept_connections(self):
-        print("Waiting for client connections...")
+        while self._running:
+            print("Waiting for client connections...")
+            self.command_socket.settimeout(1.0)
+            self.states_socket.settimeout(1.0)
+            self.video_socket.settimeout(1.0)
+            self.vision_socket.settimeout(1.0)
+            self.configuration_socket.settimeout(1.0)
 
-        self.command_conn, _ = self.command_socket.accept()
-        self.states_conn, _ = self.states_socket.accept()
-        self.video_conn, _ = self.video_socket.accept()
-        self.vision_conn, _ = self.vision_socket.accept()
-        self.config_conn, _ = self.configuration_socket.accept()
+            try:
+                self.command_conn, _ = self.command_socket.accept()
+                self.states_conn, _ = self.states_socket.accept()
+                self.video_conn, _ = self.video_socket.accept()
+                self.vision_conn, _ = self.vision_socket.accept()
+                self.config_conn, _ = self.configuration_socket.accept()
 
-        print("All client connections established")
-        
+                self.conn_sockets = [self.command_conn, self.states_conn, self.video_conn, self.vision_conn, self.vision_conn, self.config_conn]
+                self.states_alive = True
+                self.commands_alive = True
+                self.config_alive = True
+                self.video_alive = True
+                self.vision_alive = True
 
-    
+                print("All client connections established and alive") 
+
+            except socket.timeout as t:
+                print(f'Socket timeout reached, {t}')
+                continue
+
+            except OSError as e:
+                print(f'No client found, {e}')
+                continue
+
+            finally:  
+                self.command_socket.settimeout(None)
+                self.states_socket.settimeout(None)
+                self.video_socket.settimeout(None)
+                self.vision_socket.settimeout(None)
+                self.configuration_socket.settimeout(None)
+                print('Sockets reset to blocking mode')
+                break
+
     def configure(self):
         self.video_socket.shutdown(socket.SHUT_RD)
         self.states_socket.shutdown(socket.SHUT_RD)
         self.command_socket.shutdown(socket.SHUT_WR) 
         return
     
-    def startup(self):
+    def setup(self):
+        self.accept_connections()
+        threading.Thread(target=self._is_alive_handler, daemon=True,name="alive handler").start()     
+        threading.Thread(target=self.receive_command, daemon=True, name='commands').start()
+        threading.Thread(target=self.receive_config, daemon=True, name='config').start()
         return
     
     def cleanup(self):
@@ -507,6 +594,10 @@ class CoraServer(CoraInterface):
 
     def receive_command(self):
         while self._running:
+            if not self._is_socket_alive(self.command_conn):
+                self.commands_alive = False
+                print('command socket died')
+                break
             payload = self._receive(connection=self.command_conn)
             if payload is None:
                 continue  # connection closed or no data 
@@ -520,6 +611,10 @@ class CoraServer(CoraInterface):
     
     def receive_config(self):
         while self._running:   
+            if not self._is_socket_alive(self.config_conn):
+                self.config_alive = False
+                print('config socket died')
+                break
             payload = self._receive(connection=self.config_conn)
             if payload is None:
                 continue  # connection closed or no data 
@@ -532,10 +627,18 @@ class CoraServer(CoraInterface):
         return self.config_msg
     
     def send_state(self, state_msg):
+        if not self._is_socket_alive(self.states_conn):
+            self.states_alive = False
+            print('states socket died')
+            return
         payload = pt.encode_pose_feedback(state_msg)
         self._send(connection=self.states_conn, payload=payload)
 
     def send_vision_poses(self, poses):
+        if not self._is_socket_alive(self.vision_conn):
+            self.vision_alive = False
+            print('vision socket died')
+            return
         payload = pt.encode_vision_poses(poses)
         self._send(connection=self.vision_conn, payload=payload)
 
@@ -544,5 +647,9 @@ class CoraServer(CoraInterface):
         Encode a frame and send it over the video TCP socket.
         :param image: numpy array (H x W x C)
         """
+        if not self._is_socket_alive(self.video_conn):
+            self.video_alive = False
+            print('video socket died')
+            return
         payload = pt.image_to_bytes(image, encoding=encoding, quality=quality)
         self._send(connection=self.video_conn, payload=payload)
