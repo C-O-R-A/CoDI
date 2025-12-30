@@ -1,3 +1,6 @@
 numpy
 pillow
 matplotlib
+opencv-python
+msgpack
+pyaml

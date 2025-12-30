@@ -7,16 +7,14 @@ CoDI is an SDK developed by ... to interface with the open source Cora cobot.
 
 import numpy as np
 import tkinter as tk
-from tkinter import ttk
-from PIL import Image, ImageTk
 import socket
 import threading
-import matplotlib
 from pathlib import Path
 from yaml import safe_load, dump
 import json as js
+from numpy.typing import NDArray
 
-from . import protocol as pt
+from . import js_protocol as pt
 from . import exeptions
 
 class CoraInterface:
@@ -122,9 +120,12 @@ class CoraInterface:
             print("Client is already stopped.")
             return
         
-        print("Stopping Cora client...")        
+        print("Stopping Cora client...")   
+
+        # Stop reading/sending over tcp with running=false     
         self._running = False
         
+        # End the sockets
         for sock in (self.command_socket, self.video_socket, self.states_socket, self.configuration_socket):
             if sock:
                 try:
@@ -133,8 +134,7 @@ class CoraInterface:
                 except OSError:
                     pass
         
-        # Any post-processing steps that need to take place 
-        # are contained in this method
+        # Cleanup derived class specific processes (like threads)
         self.cleanup()
 
         return
@@ -281,25 +281,6 @@ class CoraClient(CoraInterface):
                 self.stop_thread(name)
                 entry["active"] = False
         
-    def configure_robot(self, **kwargs):
-        '''
-        (Re)configures robot's internal parameters 
-        
-        :param self: Description
-        :param kwargs: Description
-        '''
-        self.use_controller = kwargs.get("use_controller")
-        self.use_camera = kwargs.get("use_camera")
-        self.use_vision = kwargs.get("use_vision")
-        self.update_options()
-
-        payload = pt.encode_configs(use_controller=self.use_controller, 
-                                    use_video=self.use_camera, 
-                                    use_vision=self.use_vision)
-        
-        self.configuration_socket.sendall(payload)
-
-
     def kill_options(self):
         self.use_controller = False
         self.use_camera = False
@@ -334,19 +315,9 @@ class CoraClient(CoraInterface):
             active.add("commands")
 
         self.reconcile_threads(active)
-    
-    def receive_frame(self):
-        chunk_size = 8192
-        while self._running:
-            length_bytes = self.video_socket.recv(4)
-            ## Get the frame
 
-            ## Decode the frame from bytes to image
+# ----------------------
 
-            if not self._running:
-                break
-        return
-    
     def receive_states(self):
         """
         While socket is connected to server it listens 
@@ -360,23 +331,55 @@ class CoraClient(CoraInterface):
             raw_states = self.states_socket.recv(1024)
             move_status,self.state_space, self.states = pt.decode_pose_feedback(raw_states)
             self._set_move_status(move_status)
-
+    
+    def get_states(self, print=True):
+        """
+        Get self.states from Cora client object.
+        """
+        return self.states
+    
     def receive_vision_poses(self):
         while self._running:
             if not self._running:
                 break
             raw_poses = self.vision_socket.recv(1024)
+            self.aruco_poses = pt.decode_aruco_poses(raw_poses)
 
-        return
-
-    def get_states(self, print=True):
+    def get_vision_poses(self):
+        return self.aruco_poses
+    
+    def receive_frame(self):
         """
-        Get self.states from Cora client object.
+        Continuously receive frames from the video socket and decode them.
         """
-        print(self.states)
-        return self.states
+        while self._running:
+            try:
+                raw_length = self.video_socket.recv(4)
+                if not raw_length:
+                    continue
 
-    def send_command(self, command, space, rt, interface_type, print=True, gripper_command=None):
+                length = int.from_bytes(raw_length, 'big')
+                raw_payload = b''
+                while len(raw_payload) < length:
+                    chunk = self.video_socket.recv(min(8192, length - len(raw_payload)))
+                    if not chunk:
+                        break
+                    raw_payload += chunk
+
+                if raw_payload:
+                    image = pt.bytes_to_image(raw_payload)
+                    # Now `image` is a NumPy array (H x W x C)
+                    # You can store it, process it, or update a GUI
+                    self.last_frame = image
+
+            except Exception as e:
+                print("Error receiving frame:", e)
+                break
+    
+    def get_frame(self):
+        return self.last_frame
+    
+    def send_command(self, rt:bool, space:str, interface_type:str, target:str, gripper_command:float, command:NDArray, print=True):
         """
         Takes the command array and descriptive information, \n
         encodes it into json format and sends it as raw bytes \n
@@ -385,36 +388,45 @@ class CoraClient(CoraInterface):
         :param self: Description
         :param space: 'JS' for joint space or 'TS' for task (cartesian) space
 
-        :param commands: numpy array of the values wrt the selected space\n
-                format:\n 
-                        [x, y, z, rx, ry, rz] for position \n
-                        or [vx, vy, vz, wx, wy, wz] for velocity \n
-                        or [Fx, Fy, Fz, Mx, My, Mz] for effort \n
+        :param command:  4x2 numpy array of the values wrt the selected space;
+                format: 
+                        [[x, y, z, 1], [rx, ry, rz, w]] for position 
+                        or [[vx, vy, vz, 1], [wx, wy, wz, w]] for velocity
+                        or [[Fx, Fy, Fz, 1],[Mx, My, Mz, w]] for effort
 
         :param rt: True for real-time, False for non-real-time\n
 
         :param interface_type: command interface type; 'position', 'velocity', 'effort'\n
         
         :param print: If True, prints the command being sent.\n
-
-        :param args: Additional arguments, e.g., gripper commands.
         """
         if print:
             print(f"Sending {interface_type} command to Cora, {command} in {space} space.")
 
-        gripper_command = gripper_command if gripper_command is not None else np.array([0.0])  # get gripper command from args
-        command_string = pt.encode_commands(command, gripper_command, space, rt, interface_type)
+        command_string = pt.encode_commands(rt, space, interface_type, target, gripper_command, command)
 
         try:
             self.command_socket.sendall(command_string.encode('utf-8'))
         except socket.error as e:
             raise ConnectionError(f"Failed to send command to Cora arm: {e}")
-        return
-    
-    def get_configuration(self):
-        self.configuration_socket.sendall(b'config')
-        config = pt.decode_configs(self.configuration_socket.recv(1024))
-        return config
+            
+    def configure_robot(self, **kwargs):
+        '''
+        (Re)configures robot's internal parameters 
+        
+        :param self: Description
+        :param kwargs: Description
+        '''
+        self.use_controller = kwargs.get("use_controller")
+        self.use_camera = kwargs.get("use_camera")
+        self.use_vision = kwargs.get("use_vision")
+        self.update_options()
+
+        payload = pt.encode_configs(use_controller=self.use_controller, 
+                                    use_video=self.use_camera, 
+                                    use_vision=self.use_vision)
+        
+        self.configuration_socket.sendall(payload)
     
 class CoraServer(CoraInterface):
 
@@ -498,7 +510,7 @@ class CoraServer(CoraInterface):
             payload = self._receive(connection=self.command_conn)
             if payload is None:
                 continue  # connection closed or no data 
-            decoded_command = pt.decode_command(payload)
+            decoded_command = pt.decode_commands(payload)
 
             with self.command_lock:
                 self.command_msg = decoded_command
@@ -527,3 +539,10 @@ class CoraServer(CoraInterface):
         payload = pt.encode_vision_poses(poses)
         self._send(connection=self.vision_conn, payload=payload)
 
+    def send_frame(self, image: NDArray, encoding: str = "jpeg", quality: int = 90):
+        """
+        Encode a frame and send it over the video TCP socket.
+        :param image: numpy array (H x W x C)
+        """
+        payload = pt.image_to_bytes(image, encoding=encoding, quality=quality)
+        self._send(connection=self.video_conn, payload=payload)
