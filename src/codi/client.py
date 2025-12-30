@@ -165,9 +165,9 @@ class CoraClient(CoraInterface):
 
     def __init__(self, **kwargs):
         super().__init__(self, **kwargs)        
-        self.use_controller = kwargs.get("use_controller")
-        self.use_camera = kwargs.get("use_camera")
-        self.use_vision = kwargs.get("use_vision")
+        self.use_controller = kwargs.get("use_controller", False)
+        self.use_camera = kwargs.get("use_camera", False)
+        self.use_vision = kwargs.get("use_vision", False)
         self.threads = dict()
     
     def connect(self):
