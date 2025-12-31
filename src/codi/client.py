@@ -557,7 +557,7 @@ class CoraServer(CoraInterface):
     # TODO: Implement cora server derived class with appropriate methods
 
     def __init__(self, filepath: str = None, **kwargs):
-        super().__init__(filepath, **kwargs)
+        super().__init__(filepath=filepath, **kwargs)
         self.command_conn = None
         self.states_conn = None
         self.video_conn = None
