@@ -302,8 +302,8 @@ class CoraClient(CoraInterface):
     :param kwargs: host: str, video_port: str, command_port: str, states_port: str, config_port:str 
     '''
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)        
+    def __init__(self, filepath: str = None, **kwargs):
+        super().__init__(filepath=filepath, **kwargs)        
         self.use_controller = kwargs.get("use_controller", False)
         self.use_camera = kwargs.get("use_camera", False)
         self.use_vision = kwargs.get("use_vision", False)
@@ -556,8 +556,8 @@ class CoraServer(CoraInterface):
 
     # TODO: Implement cora server derived class with appropriate methods
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, filepath: str = None, **kwargs):
+        super().__init__(filepath, **kwargs)
         self.command_conn = None
         self.states_conn = None
         self.video_conn = None

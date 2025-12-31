@@ -6,7 +6,6 @@ cora_srv._activate()
 
 while True:
     if cora_srv.command_msg:
-        
         try:
             print('Received Command:')
             print(cora_srv.get_command())
