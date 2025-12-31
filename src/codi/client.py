@@ -47,6 +47,11 @@ class CoraInterface:
         '''
         
         self._running = False 
+        self.states_alive = False
+        self.commands_alive = False
+        self.config_alive = False
+        self.video_alive = False
+        self.vision_alive = False
 
         if filepath is not None:
             # process the file at given path for parameters
@@ -190,11 +195,6 @@ class CoraClient(CoraInterface):
         self.use_camera = kwargs.get("use_camera", False)
         self.use_vision = kwargs.get("use_vision", False)
         self.threads = dict()
-        self.states_alive = False
-        self.commands_alive = False
-        self.config_alive = False
-        self.video_alive = False
-        self.vision_alive = False
     
     def connect(self):
         try:
