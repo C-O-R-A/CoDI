@@ -165,7 +165,6 @@ class CoraInterface:
         with self.interface_state_lock:
             self._interface_state = 'ready'
         threading.Thread(target=self._is_alive_handler, daemon=True,name="alive handler").start() 
-        
     
     def _kill(self):
         if self._running is False:
@@ -203,7 +202,6 @@ class CoraInterface:
             return False
         return True
     
-        
     def _recv_exact(self, connection, n) -> bytes | None:
         """
         Receive exactly n bytes from the socket.
@@ -244,6 +242,57 @@ class CoraInterface:
     def _send(self, connection, payload: bytes):
         length = len(payload)
         connection.sendall(length.to_bytes(4, 'big') + payload)
+
+    def _socket_receive_loop(self, sock, alive_flag_attr, decode_func=None, store_attr=None, stop_event=None):
+        """
+        Generic method to continuously receive data from a socket.
+        
+        :param sock: socket object to read from
+        :param alive_flag_attr: string, name of the alive flag attribute (e.g., 'states_alive')
+        :param decode_func: function to decode raw bytes into data
+        :param store_attr: string, name of the attribute to store decoded data
+        :param stop_event: threading.Event to stop the loop (optional)
+        """
+        while self._running and (stop_event is None or not stop_event.is_set()):
+            try:
+                if not self._is_socket_alive(sock, 1):
+                    raise OSError("socket not alive")
+                
+                raw_data = self._receive(sock)
+                if not raw_data:
+                    raise OSError("socket closed")
+                
+                setattr(self, alive_flag_attr, True)
+                
+                if decode_func and store_attr:
+                    decoded = decode_func(raw_data)
+                    setattr(self, store_attr, decoded)
+                
+            except OSError:
+                if getattr(self, alive_flag_attr):
+                    print(f'{alive_flag_attr} socket died')
+                setattr(self, alive_flag_attr, False)
+                time.sleep(0.1)
+
+    def _socket_send(self, sock, alive_flag_attr, payload):
+        """
+        Generic method to send data over a socket safely.
+        
+        :param sock: socket object
+        :param alive_flag_attr: string, name of alive flag attribute
+        :param payload: bytes to send
+        """
+        if self._running:
+            try:
+                if not self._is_socket_alive(sock, 1):
+                    raise OSError("socket not alive")
+                setattr(self, alive_flag_attr, True)
+                self._send(sock, payload)
+            except OSError:
+                if getattr(self, alive_flag_attr):
+                    print(f'{alive_flag_attr} socket died')
+                setattr(self, alive_flag_attr, False)
+                time.sleep(0.1)
 
 
 class CoraClient(CoraInterface):
@@ -411,22 +460,13 @@ class CoraClient(CoraInterface):
         and stores it as self.states in the Cora client object.
         """
         stop_event = self.threads['states']['stop_event']
-        while self._running and not stop_event.is_set(): 
-            try:
-                if not self._is_socket_alive(self.states_socket, 1):
-                    raise OSError("socket not alive")
-                raw_states = self._receive(self.states_socket)
-                if not raw_states:
-                    raise OSError("socket closed")
-                self.states_alive = True
-                move_status,self.state_space, self.states = pt.decode_pose_feedback(raw_states)
-                self._set_move_status(move_status)   
-
-            except OSError:
-                if self.states_alive:
-                    print('states socket died')
-                self.states_alive = False
-                time.sleep(0.1)
+        self._socket_receive_loop(
+            sock=self.states_socket,
+            alive_flag_attr='states_alive',
+            decode_func=pt.decode_pose_feedback,
+            store_attr='states',
+            stop_event=stop_event
+        )
 
     
     def get_states(self, verbose=True):
@@ -435,24 +475,16 @@ class CoraClient(CoraInterface):
         """
         return self.states
     
-    def receive_vision_poses(self):
-        stop_event = self.threads['vision_poses']['stop_event']
+def receive_vision_poses(self):
+    stop_event = self.threads['vision_poses']['stop_event']
+    self._socket_receive_loop(
+        sock=self.vision_socket,
+        alive_flag_attr='vision_alive',
+        decode_func=pt.decode_aruco_poses,
+        store_attr='aruco_poses',
+        stop_event=stop_event
+    )
 
-        while self._running and not stop_event.is_set(): 
-            try:
-                if not self._is_socket_alive(self.vision_socket, 1):
-                    raise OSError("socket not alive")
-                raw_poses = self._receive(self.vision_socket)
-                if not raw_poses:
-                    raise OSError("socket closed")
-                self.vision_alive = True
-                self.aruco_poses = pt.decode_aruco_poses(raw_poses) 
-
-            except OSError:
-                if self.vision_alive:
-                    print('vision socket died')
-                self.vision_alive = False
-                time.sleep(0.1)
 
     def get_vision_poses(self):
         return self.aruco_poses
@@ -484,41 +516,10 @@ class CoraClient(CoraInterface):
     def get_frame(self):
         return self.last_frame
     
-    def send_command(self, rt:bool, space:str, interface_type:str, target:str, gripper_command:float, command:NDArray, verbose=True):
-        """
-        Takes the command array and descriptive information, \n
-        encodes it into json format and sends it as raw bytes \n
-        over Ethernet TCP to the server. \n
-        
-        :param self: Description
-        :param space: 'JS' for joint space or 'TS' for task (cartesian) space
+def send_command(self, rt, space, interface_type, target, gripper_command, command, verbose=True):
+    payload = pt.encode_commands(rt, space, interface_type, target, gripper_command, command)
+    self._socket_send(self.command_socket, 'commands_alive', payload)
 
-        :param command:  4x2 numpy array of the values wrt the selected space;
-                format: 
-                        [[x, y, z, 1], [rx, ry, rz, w]] for position 
-                        or [[vx, vy, vz, 1], [wx, wy, wz, w]] for velocity
-                        or [[Fx, Fy, Fz, 1],[Mx, My, Mz, w]] for effort
-
-        :param rt: True for real-time, False for non-real-time\n
-
-        :param interface_type: command interface type; 'position', 'velocity', 'effort'\n
-        
-        :param print: If True, prints the command being sent.\n
-        """
-        if self._running: 
-            try:
-                if not self._is_socket_alive(self.command_socket, 1):
-                    raise OSError("socket not alive")
-                self.commands_alive = True
-                commands = pt.encode_commands(rt, space, interface_type, target, gripper_command, command)
-                self._send(self.command_socket, commands)
-
-            except OSError:
-                if self.commands_alive:
-                    print('commands socket died')
-                self.commands_alive = False
-                time.sleep(0.1)
-                return
             
     def configure_robot(self, **kwargs):
         '''
@@ -679,23 +680,13 @@ class CoraServer(CoraInterface):
                 pass
 
     def receive_command(self):
-        while self._running:
-            try:
-                if not self._is_socket_alive(self.command_conn, 1):
-                    raise OSError("socket not alive")
-                payload = self._receive(self.command_conn)
-                if not payload:
-                    raise OSError("socket closed")
-                self.commands_alive = True
-                decoded_command = pt.decode_commands(payload)
-                with self.command_lock:
-                    self.command_msg = decoded_command   
-
-            except OSError:
-                if self.commands_alive:
-                    print('commands socket died')
-                self.commands_alive = False
-                time.sleep(0.1)
+        self._socket_receive_loop(
+            sock=self.command_conn,
+            alive_flag_attr='command_alive',
+            decode_func=pt.decode_commands,
+            store_attr='command_msg',
+            stop_event=None
+        )
 
     def get_command(self):
         return self.command_msg
@@ -726,53 +717,17 @@ class CoraServer(CoraInterface):
         return self.config_msg
     
     def send_state(self, status, space, end_effector_state, camera_frame_state, gripper_frame_state):
-        if self._running: 
-            try:
-                if not self._is_socket_alive(self.states_conn, 1):
-                    raise OSError("socket not alive")
-                self.states_alive = True
-                payload = pt.encode_pose_feedback(status, space, end_effector_state, camera_frame_state, gripper_frame_state)
-                self._send(self.states_conn, payload)
-
-            except OSError:
-                if self.states_alive:
-                    print('states socket died')
-                self.states_alive = False
-                time.sleep(0.1)
-                return
+        payload = pt.encode_pose_feedback(status, space, end_effector_state, camera_frame_state, gripper_frame_state)
+        self._socket_send(self.states_conn, 'states_alive', payload)
 
     def send_vision_poses(self, ids, poses: NDArray):
-        if self._running: 
-            try:
-                if not self._is_socket_alive(self.vision_conn, 1):
-                    raise OSError("socket not alive")
-                self.vision_alive = True
-                payload = pt.encode_aruco_poses(ids, poses)
-                self._send(self.vision_conn, payload)
-
-            except OSError:
-                if self.vision_alive:
-                    print('vision socket died')
-                self.vision_alive = False
-                time.sleep(0.1)
-                return
+        payload = pt.encode_aruco_poses(ids, poses)
+        self._socket_send(self.vision_conn, 'vision_alive', payload)
 
     def send_frame(self, image: NDArray, encoding: str = "jpeg", quality: int = 90):
         """
         Encode a frame and send it over the video TCP socket.
         :param image: numpy array (H x W x C)
         """
-        if self._running: 
-            try:
-                if not self._is_socket_alive(self.video_conn, 1):
-                    raise OSError("socket not alive")
-                self.states_alive = True
-                payload = pt.image_to_bytes(image, encoding=encoding, quality=quality)
-                self._send(connection=self.video_conn, payload=payload)
-
-            except OSError:
-                if self.video_alive:
-                    print('video socket died')
-                self.video_alive = False
-                time.sleep(0.1)
-                return
+        payload = pt.image_to_bytes(image, encoding=encoding, quality=quality)
+        self._socket_send(self.states_conn, 'states_alive', payload)
