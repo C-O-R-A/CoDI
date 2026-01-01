@@ -91,7 +91,7 @@ def encode_commands(rt: bool, space: str, interface_type: str, target:str, gripp
                'shape': list(pose_command.shape),
                'dtype': str(pose_command.dtype),
                'target': target,
-               'gripper_data': gripper_command.tolist(),
+               'gripper_data': gripper_command,
                'pose_data': pose_command.tolist()
         }
 

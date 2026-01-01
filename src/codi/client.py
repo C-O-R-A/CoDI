@@ -703,7 +703,7 @@ class CoraServer(CoraInterface):
     def receive_command(self):
         self._socket_receive_loop(
             sock=self.command_conn,
-            alive_flag_attr='command_alive',
+            alive_flag_attr='commands_alive',
             decode_func=pt.decode_commands,
             store_attr='command_msg',
             stop_event=None
