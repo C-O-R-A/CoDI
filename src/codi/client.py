@@ -615,21 +615,14 @@ class CoraServer(CoraInterface):
                 self.vision_alive = True
 
                 print("All client connections established and alive") 
+                break
 
             except socket.timeout as t:
                 print(f'Socket timeout reached, {t}')
-                retry_count +=1
-                if retry_count == 5:
-                    retry_count = 0
-                    break
                 continue
 
             except OSError as e:
                 print(f'No client found, {e}')
-                retry_count +=1
-                if retry_count == 5:
-                    retry_count = 0
-                    break
                 continue
 
             finally:  

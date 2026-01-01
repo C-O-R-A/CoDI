@@ -4,3 +4,5 @@
 colossus_sdk/__pycache__
 tests/__pycache__
 .pytest_cache
+src/codi/__pycache__/
+codi.egg-info/

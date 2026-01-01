@@ -1,7 +1,11 @@
 from codi import CoraServer
 import time
+from pathlib import Path
 
-cora_srv = CoraServer('./config/example_server.json')
+HERE = Path(__file__).resolve().parent
+CONFIG = HERE.parent / "config" / "example_server.json"
+
+cora_srv = CoraServer(str(CONFIG))
 cora_srv._activate()
 
 while True:

@@ -1,0 +1,16 @@
+README.md
+pyproject.toml
+setup.py
+src/codi/__init__.py
+src/codi/api.py
+src/codi/client.py
+src/codi/exeptions.py
+src/codi/js_protocol.py
+src/codi/runtime.py
+src/codi.egg-info/PKG-INFO
+src/codi.egg-info/SOURCES.txt
+src/codi.egg-info/dependency_links.txt
+src/codi.egg-info/requires.txt
+src/codi.egg-info/top_level.txt
+tests/test_client.py
+tests/test_utils.py
