@@ -578,61 +578,52 @@ class CoraServer(CoraInterface):
         self.video_socket.bind((self.arm_host, self.video_port))
         self.vision_socket.bind((self.arm_host, self.vision_port))
         self.configuration_socket.bind((self.arm_host, self.config_port))
+        
+        print('Sockets bound')
 
         self.command_socket.listen(1)
         self.states_socket.listen(1)
         self.video_socket.listen(1)
         self.vision_socket.listen(1)
         self.configuration_socket.listen(1)
+
         print('Listening for Cora Client ...')       
 
     def accept_connections(self):
-        retry_count = 0
-        while self._running:
-            print("Waiting for client connections...")
-            self.command_socket.settimeout(1.0)
-            self.states_socket.settimeout(1.0)
-            self.video_socket.settimeout(1.0)
-            self.vision_socket.settimeout(1.0)
-            self.configuration_socket.settimeout(1.0)
+        sockets = {
+            self.command_socket: "command_conn",
+            self.states_socket: "states_conn",
+            self.video_socket: "video_conn",
+            self.vision_socket: "vision_conn",
+            self.configuration_socket: "config_conn",
+        }
 
-            try:
-                self.command_conn, _ = self.command_socket.accept()
-                self.states_conn, _ = self.states_socket.accept()
-                self.video_conn, _ = self.video_socket.accept()
-                self.vision_conn, _ = self.vision_socket.accept()
-                self.config_conn, _ = self.configuration_socket.accept()
+        print("Waiting for client connections...")
 
-                self.conn_sockets = [self.command_conn, 
-                                     self.states_conn, 
-                                     self.video_conn, 
-                                     self.vision_conn, 
-                                     self.config_conn]
-                self.states_alive = True
-                self.commands_alive = True
-                self.config_alive = True
-                self.video_alive = True
-                self.vision_alive = True
+        while self._running and sockets:
+            readable, _, _ = select.select(list(sockets.keys()), [], [], 1.0)
 
-                print("All client connections established and alive") 
-                break
+            for sock in readable:
+                try:
+                    conn, addr = sock.accept()
+                    name = sockets[sock]
+                    setattr(self, name, conn)
+                    sockets.pop(sock)
 
-            except socket.timeout as t:
-                print(f'Socket timeout reached, {t}')
-                continue
+                    print(f"Accepted {name} from {addr}")
 
-            except OSError as e:
-                print(f'No client found, {e}')
-                continue
+                except OSError as e:
+                    print(f"Accept failed: {e}")
 
-            finally:  
-                for sock in [self.command_socket, self.states_socket, self.video_socket, self.vision_socket, self.configuration_socket]:
-                    try:
-                        if sock:  # ensure socket exists
-                            sock.settimeout(None)
-                    except OSError:
-                        pass
-                
+        # Mark alive once all connections are in
+        self.states_alive = True
+        self.commands_alive = True
+        self.config_alive = True
+        self.video_alive = True
+        self.vision_alive = True
+
+        print("All client connections established")
+                  
 
     def configure(self):
         self.video_socket.shutdown(socket.SHUT_RD)
@@ -723,4 +714,4 @@ class CoraServer(CoraInterface):
         :param image: numpy array (H x W x C)
         """
         payload = pt.image_to_bytes(image, encoding=encoding, quality=quality)
-        self._socket_send(self.states_conn, 'states_alive', payload)
+        self._socket_send(self.video_conn, 'video_alive', payload)
