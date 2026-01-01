@@ -312,23 +312,60 @@ class CoraClient(CoraInterface):
         self.last_frame = None
         self.aruco_poses = None
 
+    def _connect_with_retry(self, sock, addr, name, retries=50, delay=0.1):
+        for i in range(retries):
+            try:
+                sock.connect(addr)
+                print(f"Connected {name}")
+                return True
+            except ConnectionRefusedError:
+                time.sleep(delay)
+            except OSError as e:
+                raise ConnectionError(f"{name} failed: {e}")
+
+        raise ConnectionError(f"{name} failed after {retries} retries")
+
+
     
     def connect(self):
-        try:
-            self.command_socket.connect((self.arm_host, self.command_port))
-            self.video_socket.connect((self.arm_host, self.video_port))
-            self.vision_socket.connect((self.arm_host, self.vision_port))
-            self.states_socket.connect((self.arm_host, self.states_port))
-            self.configuration_socket.connect((self.arm_host, self.config_port))
-            self.states_alive = True
-            self.commands_alive = True
-            self.config_alive = True
-            self.video_alive = True
-            self.vision_alive = True
-            print('Connected to Cora Server')
-        
-        except socket.error as e:
-            raise ConnectionError(f"Failed to connect to Cora arm: {e}")
+        self._connect_with_retry(
+            self.command_socket,
+            (self.arm_host, self.command_port),
+            "command"
+        )
+
+        self._connect_with_retry(
+            self.states_socket,
+            (self.arm_host, self.states_port),
+            "states"
+        )
+
+        self._connect_with_retry(
+            self.video_socket,
+            (self.arm_host, self.video_port),
+            "video"
+        )
+
+        self._connect_with_retry(
+            self.vision_socket,
+            (self.arm_host, self.vision_port),
+            "vision"
+        )
+
+        self._connect_with_retry(
+            self.configuration_socket,
+            (self.arm_host, self.config_port),
+            "config"
+        )
+
+        self.states_alive = True
+        self.commands_alive = True
+        self.config_alive = True
+        self.video_alive = True
+        self.vision_alive = True
+
+        print("Connected to Cora Server")
+
         
     def configure(self):
         self.video_socket.shutdown(socket.SHUT_WR)
@@ -475,15 +512,15 @@ class CoraClient(CoraInterface):
         """
         return self.states
     
-def receive_vision_poses(self):
-    stop_event = self.threads['vision_poses']['stop_event']
-    self._socket_receive_loop(
-        sock=self.vision_socket,
-        alive_flag_attr='vision_alive',
-        decode_func=pt.decode_aruco_poses,
-        store_attr='aruco_poses',
-        stop_event=stop_event
-    )
+    def receive_vision_poses(self):
+        stop_event = self.threads['vision_poses']['stop_event']
+        self._socket_receive_loop(
+            sock=self.vision_socket,
+            alive_flag_attr='vision_alive',
+            decode_func=pt.decode_aruco_poses,
+            store_attr='aruco_poses',
+            stop_event=stop_event
+        )
 
 
     def get_vision_poses(self):
@@ -516,9 +553,9 @@ def receive_vision_poses(self):
     def get_frame(self):
         return self.last_frame
     
-def send_command(self, rt, space, interface_type, target, gripper_command, command, verbose=True):
-    payload = pt.encode_commands(rt, space, interface_type, target, gripper_command, command)
-    self._socket_send(self.command_socket, 'commands_alive', payload)
+    def send_command(self, rt, space, interface_type, target, gripper_command, command, verbose=True):
+        payload = pt.encode_commands(rt, space, interface_type, target, gripper_command, command)
+        self._socket_send(self.command_socket, 'commands_alive', payload)
 
             
     def configure_robot(self, **kwargs):
@@ -578,7 +615,7 @@ class CoraServer(CoraInterface):
         self.video_socket.bind((self.arm_host, self.video_port))
         self.vision_socket.bind((self.arm_host, self.vision_port))
         self.configuration_socket.bind((self.arm_host, self.config_port))
-        
+
         print('Sockets bound')
 
         self.command_socket.listen(1)
