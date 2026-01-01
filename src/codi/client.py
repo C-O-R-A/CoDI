@@ -79,7 +79,7 @@ class CoraInterface:
                 print(f'Host found at {self.arm_host}')
                 
             except socket.gaierror:
-                raise ValueError(f"Could not resolve hostname: {self.arm_host}")
+                raise ValueError(f"Could not resolve hostname: {loaded_file["host"]}")
             
             self.video_port = loaded_file["video_port"]
             self.command_port = loaded_file["command_port"]
