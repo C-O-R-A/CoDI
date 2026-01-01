@@ -663,9 +663,9 @@ class CoraServer(CoraInterface):
                   
 
     def configure(self):
-        self.video_socket.shutdown(socket.SHUT_RD)
-        self.states_socket.shutdown(socket.SHUT_RD)
-        self.command_socket.shutdown(socket.SHUT_WR) 
+        # self.video_socket.shutdown(socket.SHUT_RD)
+        # self.states_socket.shutdown(socket.SHUT_RD)
+        # self.command_socket.shutdown(socket.SHUT_WR) 
         return
     
     def setup(self):
