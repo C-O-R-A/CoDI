@@ -1,6 +1,7 @@
 from codi import CoraServer
 import time
 from pathlib import Path
+import numpy as np
 
 HERE = Path(__file__).resolve().parent
 CONFIG = HERE.parent / "config" / "example_server.json"
@@ -10,6 +11,11 @@ cora_srv._activate()
 last_command = None
 
 while True:
+    cora_srv.send_state('moving', 'joint',
+                        end_effector_state=np.array([[1, 1, 1], [3, 3, 3]]),
+                        camera_frame_state=np.array([[2, 2, 2], [4, 4, 4]]),
+                        gripper_frame_state=np.array([[4, 4, 4], [5, 5, 5]]))
+
     if cora_srv.command_msg != last_command:
         try:
             print('Received Command:')
@@ -20,3 +26,5 @@ while True:
         except KeyboardInterrupt as k:
             print(f'keyboard interrupt, {k}')
             break
+
+    time.sleep(0.3)
