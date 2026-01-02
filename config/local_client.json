@@ -1,5 +1,5 @@
 {
-  "host": "cora.local",
+  "host": "127.0.0.1",
   "video_port": 5000,
   "command_port": 5001,
   "states_port": 5002,

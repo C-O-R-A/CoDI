@@ -1,7 +1,7 @@
 import numpy as np
 from numpy.typing import NDArray
 import json as js
-from typing import List, Tuple
+from typing import List
 import msgpack
 import cv2
 
@@ -150,11 +150,11 @@ def encode_pose_feedback(
     states_data = {
         "status": status,
         "space": space,
-        "shape": end_effector_states.shape,
-        "type": end_effector_states.dtype,
+        "shape": list(end_effector_states.shape),
+        "type": str(end_effector_states.dtype),
         "end_effector_data": end_effector_states.tolist(),
         "camera_frame_data": camera_frame_states.tolist(),
-        "gripper_frame_data": gripper_frame_states.toList(),
+        "gripper_frame_data": gripper_frame_states.tolist(),
     }
     raw_json_states = (js.dumps(states_data)).encode("utf-8")
     return raw_json_states

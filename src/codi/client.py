@@ -5,32 +5,19 @@ CoDI is an SDK developed by ... to interface with the open source Cora cobot.
 ;-)
 """
 
-import numpy as np
-import tkinter as tk
 import socket
 import select
 import threading
 from pathlib import Path
-from yaml import safe_load, dump
+from yaml import safe_load
 import json as js
 from numpy.typing import NDArray
 import time
 
 from . import js_protocol as pt
-from . import exeptions
 
 
 class CoraInterface:
-
-    # TODO: Make it so that a program can be exited without killing the socket threads.
-    # i.e. ready to use client objects that are always in connection with the server once started.
-    # this way other standard programs can also be included in the sdk,
-    # like a controller interface for use with bluetooth controllers
-
-    # TODO: Add initialization step at startup that configures what
-    # optional nodes need to be launched on the robot.
-    # i.e. vision and bt controller nodes. this way when a program is terminated,
-    # these optional nodes are killed and possibly (re)started on another program's startup.
 
     def __init__(self, filepath: str = None, **kwargs):
         """
