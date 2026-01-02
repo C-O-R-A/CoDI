@@ -168,7 +168,7 @@ For most applications, the provided example config files under `./config/` can b
 **json**
 ```json
 {
-  "host": "<host name / IP adress>",
+  "host": "cora.local",
   "video_port": <video port>,
   "command_port": <command port>,
   "states_port": <states port>,
@@ -179,7 +179,7 @@ For most applications, the provided example config files under `./config/` can b
 
 **yaml**
 ```yaml
-host: "<host name / IP adress>"
+host: "cora.local"
 video_port: <video port>
 command_port: <command port>
 states_port: <states port>
