@@ -148,6 +148,16 @@ Navigate to your network settings, then ethernet, then to the ethernet adapter c
    - Preferred DNS: `1.1.1.1`
 9. Click **Save**
 
+#### Test
+Open Command Prompt and type:
+```cmd
+ping 192.168.10.1
+```
+or 
+```cmd
+ping cora.local
+```
+
 ### Socket configuration files
 
 This sdk supports both **.json** and **.yaml** config files. 
