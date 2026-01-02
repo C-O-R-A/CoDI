@@ -150,8 +150,8 @@ def encode_pose_feedback(
     states_data = {
         "status": status,
         "space": space,
-        "shape": end_effector_states.shape(),
-        "type": end_effector_states.dtype(),
+        "shape": end_effector_states.shape,
+        "type": end_effector_states.dtype,
         "end_effector_data": end_effector_states.tolist(),
         "camera_frame_data": camera_frame_states.tolist(),
         "gripper_frame_data": gripper_frame_states.toList(),
