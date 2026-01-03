@@ -1,26 +1,21 @@
 from codi import CoraServer
 import time
 from pathlib import Path
-import numpy as np
 
 HERE = Path(__file__).resolve().parent
 CONFIG = HERE.parent / "config" / "example_server.json"
 
 cora_srv = CoraServer(str(CONFIG))
 cora_srv._activate()
-last_command = None
+last_config = None
 
 while True:
-    cora_srv.send_state('moving', 'joint',
-                        end_effector_state=np.array([[1, 1, 1], [3, 3, 3]]),
-                        camera_frame_state=np.array([[2, 2, 2], [4, 4, 4]]),
-                        gripper_frame_state=np.array([[4, 4, 4], [5, 5, 5]]))
-
-    if cora_srv.command_msg != last_command:
+    config = cora_srv.receive_config()
+    if config != last_config:
         try:
             print('Received Command:')
-            last_command = cora_srv.get_command()
-            print(last_command)
+            print(config)
+            last_config = config
             time.sleep(1)
 
         except KeyboardInterrupt as k:

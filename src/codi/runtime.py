@@ -7,6 +7,8 @@ def start_client(config_path=None, **kwargs):
         from .client import CoraClient
         _client = CoraClient(filepath=config_path, **kwargs)
         _client._activate()
+    else:
+        print("Client active from previous session")
     return _client
 
 
