@@ -6,7 +6,7 @@ HERE = Path(__file__).resolve().parent
 CONFIG = HERE.parent / "config" / "example_server.json"
 
 cora_srv = CoraServer(str(CONFIG))
-cora_srv._activate()  # or cora_srv.start() if the API provides it
+cora_srv.start()  # or cora_srv.start() if the API provides it
 
 last_command = None
 
