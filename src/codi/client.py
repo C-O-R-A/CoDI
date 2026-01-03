@@ -721,7 +721,7 @@ class CoraServer(CoraInterface):
                 time.sleep(0.1)
 
     def get_config(self):
-        return self.config_msg
+        return (self.use_controller, self.use_video, self.use_vision)
 
     def send_state(
         self, status, space, end_effector_state, camera_frame_state, gripper_frame_state

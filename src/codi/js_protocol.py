@@ -4,6 +4,7 @@ import json as js
 from typing import List
 import msgpack
 import cv2
+from cv2.typing import MatLike
 
 """
 TODO: we can use this module on the desktop as well as on the robot. 
@@ -13,7 +14,7 @@ also add options for reading/writing from files for offline testing.
 
 
 def image_to_bytes(
-    image: NDArray,
+    image: MatLike,
     encoding: str = "jpeg",
     quality: int = 90,
 ) -> bytes:
@@ -47,7 +48,7 @@ def image_to_bytes(
     return msgpack.packb(payload, use_bin_type=True)
 
 
-def bytes_to_image(byte_data: bytes) -> NDArray:
+def bytes_to_image(byte_data: bytes) -> MatLike:
     """
     Decode MessagePack image bytes into numpy array.
     """

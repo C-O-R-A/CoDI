@@ -10,15 +10,15 @@ cora_srv._activate()
 last_config = None
 
 while True:
-    config = cora_srv.receive_config()
-    if config != last_config:
-        try:
-            print('Received Command:')
-            print(config)
-            last_config = config
-            time.sleep(1)
+    config = cora_srv.get_config()
+    try:
+        print('Received Command:')
+        print(config)
+        last_config = config
+        time.sleep(1)
 
-        except KeyboardInterrupt as k:
-            raise KeyboardInterrupt(f'keyboard interrupt, {k}')
+    except KeyboardInterrupt as k:
+        cora_srv._end_interface()
+        raise KeyboardInterrupt(f'keyboard interrupt, {k}')
 
     time.sleep(0.3)
