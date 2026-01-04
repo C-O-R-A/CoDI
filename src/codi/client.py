@@ -91,43 +91,26 @@ class CoraInterface:
         self._set_move_status("initializing")
 
     def _create_sockets(self):
-        self.video_socket = socket.socket(
-            socket.AF_INET, socket.SOCK_STREAM
-        )  # TCP socket for video
-        self.command_socket = socket.socket(
-            socket.AF_INET, socket.SOCK_STREAM
-        )  # TCP socket for commands
-        self.states_socket = socket.socket(
-            socket.AF_INET, socket.SOCK_STREAM
-        )  # TCP socket for states
-        self.vision_socket = socket.socket(
-            socket.AF_INET, socket.SOCK_STREAM
-        )  # TCP socket for vision
-        self.configuration_socket = socket.socket(
-            socket.AF_INET, socket.SOCK_STREAM
-        )  # TCP socket for configurations
-        self.sockets = [
-            self.command_socket,
-            self.states_socket,
-            self.video_socket,
-            self.vision_socket,
-            self.configuration_socket,
-        ]
+        self.sockets = {}
+        for name in ["command", "states", "video", "vision", "config"]:
+            self.sockets[name] = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-    def _kill(self, stop_listening=True, stop_running=True):
+    def _kill(self, stop_listening=True):
         if self._running is False:
             print("Client is already stopped.")
             return
 
         print("Stopping Cora client...")
 
-        # Stop reading/sending over tcp with running=false
-        if stop_running:
-            self._running = False
+        # top loops FIRST
+        self._running = False
+
+        # Let threads exit
+        time.sleep(0.05)
 
         # Stop listening sockets
-        if stop_listening:
-            for sock in self.sockets:
+        for sock in self.sockets:
+            if stop_listening:
                 if sock:
                     try:
                         sock.shutdown(socket.SHUT_RDWR)
@@ -150,13 +133,22 @@ class CoraInterface:
         self._kill()
         self._supervisor_running = False
 
-    def _is_socket_alive(self, sock, timeout=0):
-        _, _, errored = select.select([sock], [], [sock], timeout)
-
-        # Error list means the socket is dead
-        if errored:
+    def _is_socket_alive(self, sock, timeout=0.2):
+        if sock is None:
             return False
-        return True
+
+        try:
+            fd = sock.fileno()
+            if fd < 0:
+                print('incorrect fd')
+                return False
+
+            _, _, errored = select.select([sock], [], [sock], timeout)
+            return not errored
+
+        except (OSError, ValueError) as e:
+            print(e)
+            return False
 
     def _recv_exact(self, connection, n) -> bytes | None:
         """
@@ -211,26 +203,28 @@ class CoraInterface:
         :param store_attr: string, name of the attribute to store decoded data
         :param stop_event: threading.Event to stop the loop (optional)
         """
+        print('initiating receive loop')
         while self._running and (stop_event is None or not stop_event.is_set()):
             try:
-                if not self._is_socket_alive(sock, 1):
+                if self._is_socket_alive(sock, 1) is False:
                     raise OSError("socket not alive")
+                else:
+                    setattr(self, alive_flag_attr, True)
+                    raw_data = self._receive(sock)
 
-                raw_data = self._receive(sock)
                 if not raw_data:
                     raise OSError("socket closed")
-
-                setattr(self, alive_flag_attr, True)
 
                 if decode_func and store_attr:
                     decoded = decode_func(raw_data)
                     setattr(self, store_attr, decoded)
 
-            except OSError:
+            except OSError as e:
                 if getattr(self, alive_flag_attr):
-                    print(f"{alive_flag_attr} socket died")
-                setattr(self, alive_flag_attr, False)
-                time.sleep(0.1)
+                    print(f"{alive_flag_attr} socket died: {e}")
+                    setattr(self, alive_flag_attr, False)
+                    time.sleep(0.1)
+                continue
 
     def _socket_send(self, sock, alive_flag_attr, payload):
         """
@@ -242,15 +236,17 @@ class CoraInterface:
         """
         if self._running:
             try:
-                if not self._is_socket_alive(sock, 1):
+                if self._is_socket_alive(sock, 1) is False:
                     raise OSError("socket not alive")
-                setattr(self, alive_flag_attr, True)
-                self._send(sock, payload)
-            except OSError:
+                else:
+                    setattr(self, alive_flag_attr, True)
+                    self._send(sock, payload)
+            except OSError as e:
                 if getattr(self, alive_flag_attr):
-                    print(f"{alive_flag_attr} socket died")
-                setattr(self, alive_flag_attr, False)
-                time.sleep(0.1)
+                    print(f"{alive_flag_attr} socket died: {e}")
+                    setattr(self, alive_flag_attr, False)
+                    time.sleep(0.1)
+                return
 
 
 class CoraClient(CoraInterface):
@@ -270,7 +266,7 @@ class CoraClient(CoraInterface):
         self.last_frame = None
         self.aruco_poses = None
 
-    def _is_alive_handler(self):
+    def _lifecycle_handler(self):
         self._supervisor_running = True
         while self._supervisor_running:
             time.sleep(0.5)
@@ -306,15 +302,15 @@ class CoraClient(CoraInterface):
 
         :param self: Description
         """
-        self._create_sockets()
-        self._running = True
-        self.connect()
-        self.configure()
-        self.setup()
+        # self._create_sockets()
+        # self._running = True
+        # self.connect()
+        # self.configure()
+        # self.setup()
         with self.interface_state_lock:
-            self._interface_state = "ready"
+            self._interface_state = "disconnected"
         threading.Thread(
-            target=self._is_alive_handler, daemon=True, name="alive handler"
+            target=self._lifecycle_handler, daemon=True, name="lifecycle handler"
         ).start()
 
     def _connect_with_retry(self, sock, addr, name, retries=50, delay=0.1):
@@ -512,24 +508,13 @@ class CoraClient(CoraInterface):
         Continuously receive frames from the video socket and decode them.
         """
         stop_event = self.threads["video"]["stop_event"]
-        while self._running and not stop_event.is_set():
-            try:
-                if not self._is_socket_alive(self.video_socket, 1):
-                    raise OSError("socket not alive")
-                raw_payload = self._receive(self.video_socket)
-                self.video_alive = True
-                if not raw_payload:
-                    raise OSError("socket closed")
-                self.last_frame = pt.bytes_to_image(raw_payload)
-            except OSError:
-                if self.video_alive:
-                    print("video socket died")
-                self.video_alive = False
-                time.sleep(0.1)
-
-            except Exception as e:
-                print("Error receiving frame:", e)
-                break
+        self._socket_receive_loop(
+            sock=self.video_socket,
+            alive_flag_attr="video_alive",
+            decode_func=pt.bytes_to_image,
+            store_attr="last_frame",
+            stop_event=stop_event
+            )
 
     def get_frame(self):
         return self.last_frame
@@ -554,25 +539,12 @@ class CoraClient(CoraInterface):
         self.use_camera = kwargs.get("use_camera")
         self.use_vision = kwargs.get("use_vision")
         self.update_options()
-
-        if self._running:
-            try:
-                if not self._is_socket_alive(self.configuration_socket, 1):
-                    raise OSError("socket not alive")
-                self.config_alive = True
-                payload = pt.encode_configs(
-                    use_controller=self.use_controller,
-                    use_video=self.use_camera,
-                    use_vision=self.use_vision,
-                )
-                self._send(self.configuration_socket, payload)
-
-            except OSError:
-                if self.config_alive:
-                    print("config socket died")
-                self.config_alive = False
-                time.sleep(0.1)
-                return
+        payload = pt.encode_configs(
+            use_controller=self.use_controller,
+            use_video=self.use_camera,
+            use_vision=self.use_vision,
+        )
+        self._socket_send(payload)
 
 
 class CoraServer(CoraInterface):
@@ -587,52 +559,60 @@ class CoraServer(CoraInterface):
         self.vision_conn = None
         self.config_conn = None
         self.command_msg = None
-        self.config_msg = None
         self.command_lock = threading.Lock()
         self.config_lock = threading.Lock()
         self.use_controller = False
         self.use_video = False
         self.use_vision = False
+        self.config_msg = (self.use_controller, self.use_video, self.use_vision)
         return
 
     def start(self):
         self._running = True
         self._create_sockets()
-        self.connect()
-
-        self.start_threads()
+        self.bind()
 
         threading.Thread(
-            target=self.watchdog,
+            target=self._lifecycle_handler,
             daemon=True,
-            name="watchdog",
+            name="lifecycle handler",
         ).start()
-        
-    def start_threads(self):
+
+    def connect(self):
         if self._running:
-            print("Waiting for client...")
             self.accept_connections()
 
-            print("Client connected")
-
+    def start_threads(self):
+        if self._running:
             self.commands_alive = True
             self.config_alive = True
-
-            threading.Thread(
+            self.command_stop = threading.Event()
+            self.config_stop = threading.Event()
+            self.command_thread = threading.Thread(
                 target=self.receive_command,
                 daemon=True,
                 name="commands",
-            ).start()
+            )
+            self.command_thread.start()
 
-            threading.Thread(
+            self.config_thread = threading.Thread(
                 target=self.receive_config,
                 daemon=True,
                 name="config",
-            ).start()
+            )
+            self.config_thread.start()
 
-    def watchdog(self):
+    def stop_threads(self):
+        self.config_stop.set()
+        self.command_stop.set()
+        self.command_thread.join()
+        self.config_thread.join()
+
+    def _lifecycle_handler(self):
+        with self.interface_state_lock:
+            self._interface_state = 'disconnected'
         while True:
-            if self._interface_state != 'disconnected':
+            if self._interface_state != "disconnected":
                 if self._running and not all(
                     [
                         self.commands_alive,
@@ -641,18 +621,25 @@ class CoraServer(CoraInterface):
                 ):
 
                     print("Client disconnected")
+                    self.stop_threads()
                     self._kill(stop_listening=False)
-                    self._interface_state = 'disconnected'
+                    with self.interface_state_lock:
+                        self._interface_state = "disconnected"
+                        continue
 
-            elif self._interface_state == 'disconnected':
+            if self._interface_state == "disconnected":
                 self._running = True
+                self.connect()
+                with self.interface_state_lock:
+                    self._interface_state = "connected"
+                    continue
+
+            elif self._interface_state == "connected":
                 self.start_threads()
-                self._interface_state = 'connected'
+                self._interface_state = "ready"
+                continue
 
-            elif self._interface_state == 'connected':
-                self._interface_state = 'ready'
-
-    def connect(self):
+    def bind(self):
         self.command_socket.bind((self.arm_host, self.command_port))
         self.states_socket.bind((self.arm_host, self.states_port))
         self.video_socket.bind((self.arm_host, self.video_port))
@@ -723,8 +710,10 @@ class CoraServer(CoraInterface):
             conn = getattr(self, name)
             if conn:
                 try:
+                    conn.shutdown(socket.SHUT_RDWR)
                     conn.close()
                 except OSError:
+                    print("OSError in cleanup")
                     pass
             setattr(self, name, None)
 
@@ -734,35 +723,23 @@ class CoraServer(CoraInterface):
             alive_flag_attr="commands_alive",
             decode_func=pt.decode_commands,
             store_attr="command_msg",
-            stop_event=None,
+            stop_event=self.command_stop,
         )
 
     def get_command(self):
         return self.command_msg
 
     def receive_config(self):
-        while self._running:
-            try:
-                if not self._is_socket_alive(self.config_conn, 1):
-                    raise OSError("socket not alive")
-                payload = self._receive(self.config_conn)
-                if not payload:
-                    raise OSError("socket closed")
-                self.config_alive = True
-                use_cont, use_vid, use_vis = pt.decode_configs(payload)
-                with self.config_lock:
-                    self.use_controller = use_cont
-                    self.use_video = use_vid
-                    self.use_vision = use_vis
-
-            except OSError:
-                if self.config_alive:
-                    print("config socket died")
-                self.config_alive = False
-                time.sleep(0.1)
+        self._socket_receive_loop(
+            sock=self.config_conn,
+            alive_flag_attr="config_alive",
+            decode_func=pt.decode_configs,
+            store_attr="config_msg",
+            stop_event=self.config_stop,
+        )
 
     def get_config(self):
-        return (self.use_controller, self.use_video, self.use_vision)
+        return self.config_msg
 
     def send_state(
         self, status, space, end_effector_state, camera_frame_state, gripper_frame_state

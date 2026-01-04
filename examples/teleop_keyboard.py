@@ -32,17 +32,17 @@ def on_release(key):
 # Start the listener in the background
 listener = keyboard.Listener(on_press=on_press, on_release=on_release)
 listener.start()
-
+VELOCITY = 0.1
 
 vectors = {
-    "w": [0.1, 0.0, 0.0],
-    "a": [0.0, -0.1, 0.0],
-    "x": [-0.1, 0.0, 0.0],
-    "d": [0.0, 0.1, 0.0],
-    "q": [-0.1 * np.sqrt(2), 0.1 * np.sqrt(2), 0.0],
-    "e": [0.1 * np.sqrt(2), 0.1 * np.sqrt(2), 0.0],
-    "c": [0.1 * np.sqrt(2), -0.1 * np.sqrt(2), 0.0],
-    "z": [-0.1 * np.sqrt(2), -0.1 * np.sqrt(2), 0.0],
+    "w": [VELOCITY, 0.0, 0.0],
+    "a": [0.0, -VELOCITY, 0.0],
+    "x": [-VELOCITY, 0.0, 0.0],
+    "d": [0.0, VELOCITY, 0.0],
+    "q": [-VELOCITY * np.sqrt(2), VELOCITY * np.sqrt(2), 0.0],
+    "e": [VELOCITY * np.sqrt(2), VELOCITY * np.sqrt(2), 0.0],
+    "c": [VELOCITY * np.sqrt(2), -VELOCITY * np.sqrt(2), 0.0],
+    "z": [-VELOCITY * np.sqrt(2), -VELOCITY * np.sqrt(2), 0.0],
 }
 
 
