@@ -10,8 +10,9 @@ CONFIG = HERE.parent / "config" / "local_client.json"
 # test send/receive with instance
 rt.start_client(str(CONFIG))
 client = cora.get_client()
-client.configure_robot(use_camera=True)
 time.sleep(2)
+client.configure_robot(use_camera=True)
+
 fps = 30
 
 while True:

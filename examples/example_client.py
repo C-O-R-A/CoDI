@@ -5,11 +5,12 @@ from pathlib import Path
 import numpy as np
 
 HERE = Path(__file__).resolve().parent
-CONFIG = HERE.parent / "config" / "example_client.json"
+CONFIG = HERE.parent / "config" / "local_client.json"
 
 # test send/receive with instance
 rt.start_client(str(CONFIG))
 client = cora.get_client()
+time.sleep(2)
 cora.send_joint_position(
     rt=False,
     space="TS",
@@ -25,7 +26,7 @@ last_state = None
 while True:
     try:
         state = client.get_states()
-        if state != last_state:
+        if state is not last_state:
             print(state)
             last_state = state
 

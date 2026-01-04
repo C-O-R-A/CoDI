@@ -47,7 +47,7 @@ class CoraInterface:
         self.vision_alive = False
 
         if filepath is not None:
-            # process the file at given path for parameters
+
             file = Path(filepath)
             extension = file.suffix
 
@@ -104,10 +104,7 @@ class CoraInterface:
 
         print("Stopping Cora client...")
 
-        # top loops FIRST
         self._running = False
-
-        # Let threads exit
         time.sleep(0.05)
 
         # Stop listening sockets
@@ -186,7 +183,7 @@ class CoraInterface:
 
         length = int.from_bytes(raw_length, "big")
         if length <= 0:
-            return None  # invalid length
+            return None 
 
         # Read the full payload
         payload = self._recv_exact(connection, length)

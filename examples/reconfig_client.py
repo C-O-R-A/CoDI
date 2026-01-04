@@ -9,10 +9,10 @@ CONFIG = HERE.parent / "config" / "local_client.json"
 # test send/receive with instance
 rt.start_client(str(CONFIG))
 client = cora.get_client()
+time.sleep(2)
 
 print('reconfiguring cora client')
-client.configure_robot(use_controller=True, use_camera=False, use_vision=True)
-time.sleep(2)
+client.configure_robot(use_controller=True, use_camera=True, use_vision=True)
 last_state = None
 
 while True:

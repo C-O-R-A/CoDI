@@ -8,7 +8,7 @@ CONFIG = HERE.parent / "config" / "example_server.json"
 cap = cv2.VideoCapture(0)
 
 cora_srv = CoraServer(str(CONFIG))
-cora_srv._activate()
+cora_srv.start()
 fps = 30
 
 while True:
