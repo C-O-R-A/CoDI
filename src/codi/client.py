@@ -91,9 +91,11 @@ class CoraInterface:
         self._set_move_status("initializing")
 
     def _create_sockets(self):
-        self.sockets = {}
-        for name in ["command", "states", "video", "vision", "config"]:
-            self.sockets[name] = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.command_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.states_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.video_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.vision_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.configuration_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     def _kill(self, stop_listening=True):
         if self._running is False:
@@ -109,8 +111,14 @@ class CoraInterface:
         time.sleep(0.05)
 
         # Stop listening sockets
-        for sock in self.sockets:
-            if stop_listening:
+        if stop_listening:
+            for sock in (
+                self.command_socket,
+                self.states_socket,
+                self.video_socket,
+                self.vision_socket,
+                self.configuration_socket,
+            ):
                 if sock:
                     try:
                         sock.shutdown(socket.SHUT_RDWR)
@@ -302,11 +310,6 @@ class CoraClient(CoraInterface):
 
         :param self: Description
         """
-        # self._create_sockets()
-        # self._running = True
-        # self.connect()
-        # self.configure()
-        # self.setup()
         with self.interface_state_lock:
             self._interface_state = "disconnected"
         threading.Thread(
@@ -528,23 +531,24 @@ class CoraClient(CoraInterface):
         self._socket_send(self.command_socket, "commands_alive", payload)
 
     def configure_robot(self, **kwargs):
-        """
-        (Re)configures robot's internal parameters
-
-        :param self: Description
-        :param kwargs: Description
-        """
-
         self.use_controller = kwargs.get("use_controller")
         self.use_camera = kwargs.get("use_camera")
         self.use_vision = kwargs.get("use_vision")
+
         self.update_options()
+
         payload = pt.encode_configs(
             use_controller=self.use_controller,
             use_video=self.use_camera,
             use_vision=self.use_vision,
         )
-        self._socket_send(payload)
+
+        self._socket_send(
+            self.configuration_socket,
+            "config_alive",
+            payload,
+        )
+
 
 
 class CoraServer(CoraInterface):
