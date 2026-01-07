@@ -69,6 +69,7 @@ def encode_commands(
     target: str,
     gripper_command: float,
     pose_command: NDArray,
+    predef_pose: str = None,
 ) -> bytes:
     """
     Serialize  goal pose command and gripper command into string format.
@@ -79,7 +80,7 @@ def encode_commands(
 
     :param interface_type: command interface type; 'position', 'velocity', 'effort'
 
-    :param target: command target frame, 'camera', 'gripper', 'end_effector'
+    :param target: command target frame, 'Camera', 'Gripper', 'endeffector'
 
     :param gripper_command: float of the gripper command
                             format: gripper_position <between 0.0 (open) and 1.0 (closed)>
@@ -105,13 +106,14 @@ def encode_commands(
         "target": target,
         "gripper_data": gripper_command,
         "pose_data": pose_command.tolist(),
+        "predefined_pose": predef_pose,
     }
 
     raw_json_commands = (js.dumps(command_data)).encode("utf-8")
     return raw_json_commands
 
 
-def decode_commands(raw_json_commands: bytes) -> bool | str | float | NDArray:
+def decode_commands(raw_json_commands: bytes) -> bool | str | float | NDArray | str:
     """
     Docstring for decode_commands
 
@@ -121,13 +123,14 @@ def decode_commands(raw_json_commands: bytes) -> bool | str | float | NDArray:
     :rtype: bool | str | float | NDArray
     """
     json_commands = js.loads(raw_json_commands.decode("utf-8"))
-    gripper_command = json_commands["gripper_data"]
+    predef_pose = json_commands["predefined_pose"]
     pose_command = np.array(json_commands["pose_data"], float)
+    gripper_command = json_commands["gripper_data"]
     target = json_commands["target"]
     interface_type = json_commands["interface_type"]
     space = json_commands["space"]
     rt = json_commands["rt"]
-    return rt, space, interface_type, target, gripper_command, pose_command
+    return rt, space, interface_type, target, gripper_command, pose_command, predef_pose
 
 
 def encode_pose_feedback(

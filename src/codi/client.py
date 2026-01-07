@@ -14,7 +14,7 @@ import json as js
 from numpy.typing import NDArray
 import time
 
-from . import js_protocol as pt
+from . import protocol as pt
 
 
 class CoraInterface:
@@ -545,7 +545,6 @@ class CoraClient(CoraInterface):
             "config_alive",
             payload,
         )
-
 
 
 class CoraServer(CoraInterface):
