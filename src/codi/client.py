@@ -520,10 +520,10 @@ class CoraClient(CoraInterface):
         return self.last_frame
 
     def send_command(
-        self, rt, space, interface_type, target, gripper_command, command, verbose=True
+        self, rt, space, interface_type, target, gripper_command, command, predef_pose, verbose=True
     ):
         payload = pt.encode_commands(
-            rt, space, interface_type, target, gripper_command, command
+            rt, space, interface_type, target, gripper_command, command, predef_pose
         )
         self._socket_send(self.command_socket, "commands_alive", payload)
 

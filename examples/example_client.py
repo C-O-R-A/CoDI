@@ -18,6 +18,7 @@ cora.send_joint_position(
     target="gripper",
     gripper_command=1.0,
     command=np.array([[1, 1, 1, 1], [2, 2, 2, 2]]),
+    predef_pose="standby"
 )
 
 time.sleep(2)
@@ -33,7 +34,7 @@ while True:
     except KeyboardInterrupt:
         stop_client = input("Stop Client? \n" + "Y/N")
         match stop_client:
-            case "Y":
+            case "y":
                 client._end_interface()
                 break
             case _:

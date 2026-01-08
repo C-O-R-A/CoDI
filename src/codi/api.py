@@ -1,7 +1,7 @@
 from .runtime import get_client
 
 
-def send_joint_position(rt, space, interface_type, target, gripper_command, command):
+def send_joint_position(rt, space, interface_type, target, gripper_command, command, predef_pose=None):
     get_client().send_command(
         rt=rt,
         space=space,
@@ -9,6 +9,7 @@ def send_joint_position(rt, space, interface_type, target, gripper_command, comm
         target=target,
         gripper_command=gripper_command,
         command=command,
+        predef_pose=predef_pose
     )
 
 
