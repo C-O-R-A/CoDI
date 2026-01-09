@@ -1,5 +1,5 @@
 # CoDI (CORA Desktop Interface)
->This project is still under active development
+![Status](https://img.shields.io/badge/status-in%20progress-yellow)
 
 A Python SDK for communicating with the Cora robotic arms over TCP sockets.  
 The package provides:
