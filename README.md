@@ -16,7 +16,6 @@ This SDK is designed to be simple, modular, and suitable for integration into la
 
 - TCP communication for commands, state feedback, and video
 - Threaded background receivers
-- Optional Tkinter GUI for monitoring and testing
 - Command encoding and state decoding utilities
 
 ---
@@ -44,8 +43,8 @@ pyproject.toml
 
 ## Installation
 
-### Linux 
 >Make sure you have installed git otherwise the following commands will not work
+### Linux 
 
 Create a venv and source it:
 ```bash
@@ -132,7 +131,7 @@ Navigate to your network settings, then ethernet, then to the ethernet adapter c
 - **Default gateway:** `192.168.10.1`
 - **Preferred DNS:** `1.1.1.1` (or `8.8.8.8`)
 
-> The gateway/DNS are only to satisfy Windows — the PCs will still talk directly.
+> The gateway/DNS are only to satisfy Windows, the PCs will still talk directly.
 
 ##### Steps (recommended / reliable way)
 1. Press `Win`
@@ -196,7 +195,7 @@ vision_port: <vision port>
 * `msgpack`
 * `pyaml`
 
-Both will be installed automatically when installing via `pip`.
+>These are installed automatically when installing via **pip**.
 
 ---
 
