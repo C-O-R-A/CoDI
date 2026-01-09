@@ -1,10 +1,11 @@
 # CoDI (CORA Desktop Interface)
+>This project is still under active development
 
 A Python SDK for communicating with the Cora robotic arms over TCP sockets.  
 The package provides:
 
-- `CoraClient` for command transmission, state feedback, and video streaming  
-- `GuiClient` for a basic Tkinter-based interface  
+- `CoraClient` Running onn the client pc for straightforward control 
+- `CoraServer` Running on a cora robot which interfaces with ROS  
 - Utility functions for encoding commands and decoding robot state messages  
 
 This SDK is designed to be simple, modular, and suitable for integration into larger robotics applications.
@@ -188,18 +189,6 @@ vision_port: <vision port>
 ```
 ---
 
-### Test
-Open Command Prompt and type:
-```cmd
-ping 192.168.10.1
-```
-or 
-```cmd
-ping cora.local
-```
-
----
-
 ## Dependencies
 
 * `numpy`
@@ -213,29 +202,38 @@ Both will be installed automatically when installing via `pip`.
 
 ## Basic Usage
 
-### Connecting and sending commands
-
+**Client**
 ```python
-from codi.client import CoraClient
+import codi.api as cora
 
-client = CoraClient(
-    host="192.168.0.10",
-    video_port=8001,
-    command_port=8002,
-    states_port=8003
-)
+# Start the client using a config file
+rt.start_client('client.json')
+client = cora.get_client()
 
-client.connect()
-
-client.send_command(
-    command=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
-    space="JS",
+# Send joint position
+cora.send_joint_position(
     rt=False,
-    interface_type="position"
+    space="TS",
+    interface_type="position",
+    target="gripper",
+    gripper_command=1.0,
+    command=np.array([[1, 1, 1, 1], [2, 2, 2, 2]]),
+    predef_pose="standby"
 )
+```
+**Server**
+```python
+from codi import CoraServer
 
-states = client.get_states()
-print(states)
+# Start the server
+cora_srv = CoraServer(str(CONFIG))
+cora_srv.start()
+
+# Send state feedback
+cora_srv.send_state('moving', 'joint',
+                    end_effector_state=np.array([[1, 1, 1], [3, 3, 3]]),
+                    camera_frame_state=np.array([[2, 2, 2], [4, 4, 4]]),
+                    gripper_frame_state=np.array([[4, 4, 4], [5, 5, 5]]))
 ```
 ---
 
