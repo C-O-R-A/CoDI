@@ -62,8 +62,8 @@ class CoraInterface:
                 "encoder": pt.encode_configs,
             },
             "vision_socket": {
-                "decoder": pt.decode_vision_data,
-                "encoder": pt.encode_vision_data,
+                "decoder": pt.decode_aruco_poses,
+                "encoder": pt.encode_aruco_poses,
             },
         }
 
