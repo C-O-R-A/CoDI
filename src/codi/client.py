@@ -99,9 +99,7 @@ class CoraInterface:
             print(f"Host found at {self.arm_host}")
 
             for socket_name, socket_ in self.sockets.items():
-                socket_["port"] = ports.get(
-                    socket_name.replace("_socket", "_port")
-                )
+                socket_["port"] = ports.get(socket_name.replace("_socket", "_port"))
 
         except socket_.gaierror:
             raise ValueError(f"Could not resolve hostname: {host}")
@@ -639,28 +637,35 @@ class CoraServer(CoraInterface):
     def accept_connections(self):
         print("Waiting for client connections...")
 
-        while self._running:
+        while self._running and not all(
+            socket_["connected"] for socket_ in self.sockets.values()
+        ):
             readable, _, _ = select.select(
-                [self.sockets[socket_name] for socket_name in self.sockets if not self.sockets[socket_name]["connected"]],
+                [
+                    self.sockets[socket_name]["socket"]
+                    for socket_name in self.sockets
+                    if not self.sockets[socket_name]["connected"]
+                ],
                 [],
                 [],
                 1.0,
             )
 
-            for socket_ in readable:
-                try:
-                    conn, addr = socket_["socket"].accept()
-                    socket_["socket"] = conn
-                    socket_["connected"] = True
-                    name = next(
-                        name
-                        for name, s in self.sockets.items()
-                        if s["socket"] == socket_
-                    )
-                    print(f"Accepted {name} from {addr}")
+            for socket_ in self.sockets.values():
+                if socket_["socket"] in readable:
+                    try:
+                        conn, addr = socket_["socket"].accept()
+                        socket_["socket"] = conn
+                        socket_["connected"] = True
+                        name = next(
+                            name
+                            for name, s in self.sockets.items()
+                            if s["socket"] == socket_
+                        )
+                        print(f"Accepted {name} from {addr}")
 
-                except OSError as e:
-                    print(f"Accept failed: {e}")
+                    except OSError as e:
+                        print(f"Accept failed: {e}")
 
         # Mark alive once all connections are in
         for socket_ in self.sockets.values():
