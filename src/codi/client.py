@@ -19,7 +19,7 @@ from . import validation as val
 
 
 class CoraInterface:
-    
+
     def __init__(self, filepath: str = None, **kwargs):
         """
         :param filepath: absolute path to json or yaml config file
@@ -42,29 +42,29 @@ class CoraInterface:
             self._interface_state = "unconnected"
 
         self.sockets = {
-                "command_socket":{
-                    "decoder": pt.decode_commands,
-                    "encoder": pt.encode_commands,
-                    "type": "write-only",
-                },
-                "states_socket":{
-                    "decoder": pt.decode_pose_feedback,
-                    "encoder": pt.encode_pose_feedback,
-                    "type": "read-only",
-                },
-                "video_socket":{
-                    "decoder": pt.bytes_to_image,
-                    "encoder": pt.image_to_bytes,
-                    "type": "read-only",
-                },
-                "config_socket":{
-                    "decoder": pt.decode_configs,
-                    "encoder": pt.encode_configs,
-                },
-                "vision_socket":{
-                    "decoder": pt.decode_vision_data,
-                    "encoder": pt.encode_vision_data,
-                }
+            "command_socket": {
+                "decoder": pt.decode_commands,
+                "encoder": pt.encode_commands,
+                "type": "write-only",
+            },
+            "states_socket": {
+                "decoder": pt.decode_pose_feedback,
+                "encoder": pt.encode_pose_feedback,
+                "type": "read-only",
+            },
+            "video_socket": {
+                "decoder": pt.bytes_to_image,
+                "encoder": pt.image_to_bytes,
+                "type": "read-only",
+            },
+            "config_socket": {
+                "decoder": pt.decode_configs,
+                "encoder": pt.encode_configs,
+            },
+            "vision_socket": {
+                "decoder": pt.decode_vision_data,
+                "encoder": pt.encode_vision_data,
+            },
         }
 
         for socket_ in self.sockets.values():
@@ -89,21 +89,22 @@ class CoraInterface:
 
             host = loaded_file.get("host")
             ports = loaded_file.get("ports", {})
-            
+
         else:
             host = kwargs.get("host")
             ports = kwargs.get("ports", {})
-        
+
         try:
             self.arm_host = socket.gethostbyname(host)
             print(f"Host found at {self.arm_host}")
 
             for socket_name, socket_ in self.sockets.items():
-                socket_["port"] = ports.get(socket_name.replace("_socket", "") + "_port")
+                socket_["port"] = ports.get(
+                    socket_name.replace("_socket", "_port")
+                )
 
         except socket_.gaierror:
             raise ValueError(f"Could not resolve hostname: {host}")
-
 
         self._set_move_status("initializing")
 
@@ -149,7 +150,7 @@ class CoraInterface:
         try:
             fd = connection.fileno()
             if fd < 0:
-                print('incorrect fd')
+                print("incorrect fd")
                 return False
 
             _, _, errored = select.select([connection], [], [connection], timeout)
@@ -187,7 +188,7 @@ class CoraInterface:
 
         length = int.from_bytes(raw_length, "big")
         if length <= 0:
-            return None 
+            return None
 
         # Read the full payload
         payload = self._recv_exact(connection, length)
@@ -200,15 +201,13 @@ class CoraInterface:
         length = len(payload)
         connection.sendall(length.to_bytes(4, "big") + payload)
 
-    def _socket_receive_loop(
-        self, socket_
-    ):
+    def _socket_receive_loop(self, socket_):
         """
         Generic method to continuously receive data from a socket.
 
         :param socket_: socket to read from
         """
-        print('initiating receive loop')
+        print("initiating receive loop")
         stop_event = socket_["thread"]["stop_event"] if socket_["thread"] else None
         while self._running and (stop_event is None or not stop_event.is_set()):
             try:
@@ -238,7 +237,11 @@ class CoraInterface:
         :param payload: bytes to send
         """
         if self._running:
-            payload = socket_["encoder"](payload) if not isinstance(payload, bytes) else payload
+            payload = (
+                socket_["encoder"](payload)
+                if not isinstance(payload, bytes)
+                else payload
+            )
             try:
                 if self._is_socket_alive(socket_["socket"], 1) is False:
                     raise OSError("socket not alive")
@@ -251,12 +254,12 @@ class CoraInterface:
                     socket_["alive"] = False
                     time.sleep(0.1)
                 return
-            
+
     def get_info(self, name):
-        '''
+        """
         Generic getter for the latest message from a socket. Name should be one of:
         'command', 'states', 'video', 'config', 'vision'
-        '''
+        """
         return self.sockets[name]["message"]
 
 
@@ -280,9 +283,11 @@ class CoraClient(CoraInterface):
             with self.interface_state_lock:
                 if self._interface_state != "disconnected":
                     if not all(
-                        [self.sockets['states']['alive'], 
-                         self.sockets['command']['alive'], 
-                         self.sockets['config']['alive']]
+                        [
+                            self.sockets["states"]["alive"],
+                            self.sockets["command"]["alive"],
+                            self.sockets["config"]["alive"],
+                        ]
                     ):
                         self._kill()
                         self._interface_state = "disconnected"
@@ -378,7 +383,9 @@ class CoraClient(CoraInterface):
 
             entry["stop_event"].clear()
 
-            t = threading.Thread(target=entry["target"], daemon=entry["daemon"], name=name)
+            t = threading.Thread(
+                target=entry["target"], daemon=entry["daemon"], name=name
+            )
 
             # Set 'thread' dict entry to the thread object
             entry["thread"] = t
@@ -465,7 +472,7 @@ class CoraClient(CoraInterface):
         self._socket_receive_loop(
             socket_=self.sockets["states_socket"],
         )
-    
+
     def get_states(self):
         return self.get_info("states")
 
@@ -473,7 +480,7 @@ class CoraClient(CoraInterface):
         self._socket_receive_loop(
             socket_=self.sockets["vision_socket"],
         )
-    
+
     def get_vision_poses(self):
         return self.get_info("vision")
 
@@ -484,12 +491,20 @@ class CoraClient(CoraInterface):
         self._socket_receive_loop(
             socket_=self.sockets["video_socket"],
         )
-    
+
     def get_frame(self):
         return self.get_info("video")
 
     def send_command(
-        self, rt, space, interface_type, target, gripper_command, command, predef_pose, verbose=True
+        self,
+        rt,
+        space,
+        interface_type,
+        target,
+        gripper_command,
+        command,
+        predef_pose,
+        verbose=True,
     ):
         payload = pt.encode_commands(
             rt, space, interface_type, target, gripper_command, command, predef_pose
@@ -559,29 +574,29 @@ class CoraServer(CoraInterface):
                     "active": False,
                     "daemon": True,
                 }
-            
+
             self.sockets["command_socket"]["thread"]["target"] = self.receive_command
             self.sockets["config_socket"]["thread"]["target"] = self.receive_config
 
             for socket_name in self.threaded_sockets:
-                 self.sockets[socket_name]["thread"]["thread"] = threading.Thread(
+                self.sockets[socket_name]["thread"]["thread"] = threading.Thread(
                     target=self.sockets[socket_name]["thread"]["target"],
                     daemon=self.sockets[socket_name]["thread"]["daemon"],
                     name=socket_name.replace("_socket", ""),
                 )
-                 self.sockets[socket_name]["thread"]["thread"].start()
+                self.sockets[socket_name]["thread"]["thread"].start()
 
     def stop_threads(self):
         for socket_name in self.threaded_sockets:
-             socket_ = self.sockets[socket_name]
-             if socket_["thread"] and socket_["thread"]["thread"].is_alive():
-                 socket_["thread"]["stop_event"].set()
-                 socket_["thread"]["thread"].join(timeout=1.0)
-                 socket_["thread"]["thread"] = None
+            socket_ = self.sockets[socket_name]
+            if socket_["thread"] and socket_["thread"]["thread"].is_alive():
+                socket_["thread"]["stop_event"].set()
+                socket_["thread"]["thread"].join(timeout=1.0)
+                socket_["thread"]["thread"] = None
 
     def _lifecycle_handler(self):
         with self.interface_state_lock:
-            self._interface_state = 'disconnected'
+            self._interface_state = "disconnected"
         while True:
             if self._interface_state != "disconnected":
                 if self._running and not all(
@@ -625,15 +640,24 @@ class CoraServer(CoraInterface):
         print("Waiting for client connections...")
 
         while self._running:
-            readable, _, _ = select.select([self.sockets[socket_name]["socket"] for socket_name in self.sockets], [], [], 1.0)
+            readable, _, _ = select.select(
+                [self.sockets[socket_name]["socket"] for socket_name in self.sockets],
+                [],
+                [],
+                1.0,
+            )
 
             for socket_ in readable:
                 try:
-                    if not socket_['connected']:
+                    if not socket_["connected"]:
                         conn, addr = socket_.accept()
-                        socket_['socket'] = conn
-                        socket_['connected'] = True
-                        name = next(name for name, s in self.sockets.items() if s["socket"] == socket_)
+                        socket_["socket"] = conn
+                        socket_["connected"] = True
+                        name = next(
+                            name
+                            for name, s in self.sockets.items()
+                            if s["socket"] == socket_
+                        )
                         print(f"Accepted {name} from {addr}")
 
                 except OSError as e:
@@ -652,7 +676,7 @@ class CoraServer(CoraInterface):
                 try:
                     conn.shutdown(socket.SHUT_RDWR)
                     conn.close()
-                    socket_['socket'] = None
+                    socket_["socket"] = None
                 except OSError:
                     print("OSError in cleanup")
                     pass

@@ -1,5 +1,5 @@
 host: 0.0.0.0  # use the hostname of your robot, or IP
-sockets:
+ports:
   video_port: 5000         # TCP port for video streaming
   command_port: 5001       # TCP port for sending commands
   states_port: 5002        # TCP port for receiving robot states
