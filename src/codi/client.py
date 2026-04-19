@@ -110,7 +110,7 @@ class CoraInterface:
 
     def _create_sockets(self):
         for socket_val in self.sockets.values():
-            socket_val["socket"] = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            socket_val["socket"] = socket.socket(socket.AF_INET, socket.SOCK_STREAM))
 
     def _kill(self, stop_listening=True):
         if self._running is False:
@@ -250,7 +250,7 @@ class CoraInterface:
                     self._send(socket_["socket"], payload)
             except OSError as e:
                 if socket_["alive"]:
-                    print(f"{socket_} socket died: {e}")
+                    print(f"socket died: {e}")
                     socket_["alive"] = False
                     time.sleep(0.1)
                 return
@@ -325,7 +325,7 @@ class CoraClient(CoraInterface):
     def _connect_with_retry(self, socket_, name, retries=50, delay=0.1):
         for i in range(retries):
             try:
-                socket_["socket"].connect(self.arm_host, socket_["port"])
+                socket_["socket"].connect((self.arm_host, socket_["port"]))
                 print(f"Connected {name}")
                 return True
             except ConnectionRefusedError:
