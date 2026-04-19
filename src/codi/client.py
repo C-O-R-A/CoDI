@@ -641,7 +641,7 @@ class CoraServer(CoraInterface):
 
         while self._running:
             readable, _, _ = select.select(
-                [self.sockets[socket_name]["socket"] for socket_name in self.sockets if not self.sockets[socket_name]["connected"]],
+                [self.sockets[socket_name] for socket_name in self.sockets if not self.sockets[socket_name]["connected"]],
                 [],
                 [],
                 1.0,
