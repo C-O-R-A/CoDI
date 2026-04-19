@@ -284,9 +284,9 @@ class CoraClient(CoraInterface):
                 if self._interface_state != "disconnected":
                     if not all(
                         [
-                            self.sockets["states"]["alive"],
-                            self.sockets["command"]["alive"],
-                            self.sockets["config"]["alive"],
+                            self.sockets["states_socket"]["alive"],
+                            self.sockets["command_socket"]["alive"],
+                            self.sockets["config_socket"]["alive"],
                         ]
                     ):
                         self._kill()
