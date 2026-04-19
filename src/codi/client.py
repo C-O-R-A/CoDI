@@ -110,7 +110,7 @@ class CoraInterface:
 
     def _create_sockets(self):
         for socket_val in self.sockets.values():
-            socket_val["socket"] = socket.socket(socket.AF_INET, socket.SOCK_STREAM))
+            socket_val["socket"] = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     def _kill(self, stop_listening=True):
         if self._running is False:
