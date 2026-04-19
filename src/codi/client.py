@@ -138,8 +138,8 @@ class CoraInterface:
         self._kill()
         self._supervisor_running = False
 
-    def _is_socket_alive(self, sock, timeout=0.2):
-        if sock is None:
+    def _is_socket_alive(self, connection, timeout=0.2):
+        if connection is None:  
             return False
 
         try:
