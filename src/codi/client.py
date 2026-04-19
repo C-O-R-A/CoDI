@@ -649,16 +649,15 @@ class CoraServer(CoraInterface):
 
             for socket_ in readable:
                 try:
-                    if not socket_["connected"]:
-                        conn, addr = socket_["socket"].accept()
-                        socket_["socket"] = conn
-                        socket_["connected"] = True
-                        name = next(
-                            name
-                            for name, s in self.sockets.items()
-                            if s["socket"] == socket_
-                        )
-                        print(f"Accepted {name} from {addr}")
+                    conn, addr = socket_["socket"].accept()
+                    socket_["socket"] = conn
+                    socket_["connected"] = True
+                    name = next(
+                        name
+                        for name, s in self.sockets.items()
+                        if s["socket"] == socket_
+                    )
+                    print(f"Accepted {name} from {addr}")
 
                 except OSError as e:
                     print(f"Accept failed: {e}")
