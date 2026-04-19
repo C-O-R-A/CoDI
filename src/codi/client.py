@@ -474,7 +474,7 @@ class CoraClient(CoraInterface):
         )
 
     def get_states(self):
-        return self.get_info("states")
+        return self.get_info("states_socket")
 
     def receive_vision_poses(self):
         self._socket_receive_loop(
@@ -482,7 +482,7 @@ class CoraClient(CoraInterface):
         )
 
     def get_vision_poses(self):
-        return self.get_info("vision")
+        return self.get_info("vision_socket")
 
     def receive_frame(self):
         """
@@ -493,7 +493,7 @@ class CoraClient(CoraInterface):
         )
 
     def get_frame(self):
-        return self.get_info("video")
+        return self.get_info("video_socket")
 
     def send_command(
         self,
@@ -687,7 +687,7 @@ class CoraServer(CoraInterface):
         )
 
     def get_command(self):
-        return self.get_info("command")
+        return self.get_info("command_socket")
 
     def receive_config(self):
         self._socket_receive_loop(
@@ -695,7 +695,7 @@ class CoraServer(CoraInterface):
         )
 
     def get_config(self):
-        return self.get_info("config")
+        return self.get_info("config_socket")
 
     def send_state(
         self, status, space, end_effector_state, camera_frame_state, gripper_frame_state
