@@ -627,12 +627,12 @@ class CoraServer(CoraInterface):
 
     def bind(self):
         for socket_ in self.sockets.values():
-            socket_.bind((self.arm_host, socket_["port"]))
+            socket_["socket"].bind((self.arm_host, socket_["port"]))
 
         print("Sockets bound")
 
         for socket_ in self.sockets.values():
-            socket_.listen(1)
+            socket_["socket"].listen(1)
 
         print("Listening for Cora Client ...")
 
@@ -641,7 +641,7 @@ class CoraServer(CoraInterface):
 
         while self._running:
             readable, _, _ = select.select(
-                [self.sockets[socket_name]["socket"] for socket_name in self.sockets],
+                [self.socket_["socket"] for socket_ in self.sockets.values() if not socket_["connected"]],
                 [],
                 [],
                 1.0,
@@ -650,7 +650,7 @@ class CoraServer(CoraInterface):
             for socket_ in readable:
                 try:
                     if not socket_["connected"]:
-                        conn, addr = socket_.accept()
+                        conn, addr = socket_["socket"].accept()
                         socket_["socket"] = conn
                         socket_["connected"] = True
                         name = next(
