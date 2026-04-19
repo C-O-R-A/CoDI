@@ -1,10 +1,10 @@
+from .client import CoraClient
 _client = None
 
 
 def start_client(config_path=None, **kwargs):
     global _client
     if _client is None:
-        from .client import CoraClient
         _client = CoraClient(filepath=config_path, **kwargs)
         _client._activate()
     else:

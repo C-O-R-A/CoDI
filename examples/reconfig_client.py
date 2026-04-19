@@ -1,4 +1,3 @@
-import codi.api as cora
 import codi.runtime as rt
 import time
 from pathlib import Path
@@ -8,7 +7,7 @@ CONFIG = HERE.parent / "config" / "local_client.json"
 
 # test send/receive with instance
 rt.start_client(str(CONFIG))
-client = cora.get_client()
+client = rt.get_client()
 time.sleep(2)
 
 print('reconfiguring cora client')

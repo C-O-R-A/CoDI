@@ -20,12 +20,16 @@ def validate_command_schema(cmd: dict) -> None:
                 f"Key '{key}' must be {expected_type}, got {type(cmd[key])}"
             )
 
-
 def _raise_semantic_error(values: tuple, keystring: str, invalid_value: any):
     raise ProtocolSemanticError(
             f"Requested {keystring} {invalid_value} invalid. \
                 can only accept {values}.")
 
+def status(status_string: str) -> str:
+    allowed_statuses = ('initializing', 'ready', 'moving', 'error')
+    if status_string not in allowed_statuses:
+        _raise_semantic_error(allowed_statuses, 'status', status_string)
+    return status_string
 
 def validate_command_semantic(cmd: dict) -> None:
     allowed_spaces = ('TS', 'JS')

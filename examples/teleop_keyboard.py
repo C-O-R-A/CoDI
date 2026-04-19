@@ -1,4 +1,3 @@
-import codi.api as cora
 import codi.runtime as rt
 import time
 from pathlib import Path
@@ -10,7 +9,7 @@ CONFIG = HERE.parent / "config" / "local_client.json"
 
 # Start client
 rt.start_client(str(CONFIG))
-client = cora.get_client()
+client = rt.get_client()
 time.sleep(4)
 
 pressed_keys = set()
@@ -81,14 +80,13 @@ def switch_space(space):
     return "JS" if space == "TS" else "TS"
 
 
-cora.send_joint_position(
+client.send_command(
     rt=False,
     space="TS",
     interface_type="position",
-    target="gripper",
-    gripper_command=1.0,
-    command=np.array([[1, 1, 1, 1], [2, 2, 2, 2]]),
-    predef_pose="standby_2",
+    target="Gripper",
+    gripper_command=0.01,
+    command=np.array([[0.60, 0.0, 0.2, 1], [0.0, 0.0, -0.7070727, 0.7070727]]),
 )
 
 time.sleep(10)
@@ -99,6 +97,8 @@ print(
     "  Switch space: S\n"
     "  Ctrl+C to exit"
 )
+
+client.configure_robot(use_camera=True)
 
 space = "TS"
 
@@ -111,7 +111,7 @@ while True:
 
     sent_command = False
 
-    # ---- CARTESIAN SPACE ----
+    # ---- TASK SPACE ----
     if space == "TS":
         for key in pressed_keys:
             if key in vectors:
