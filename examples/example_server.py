@@ -16,7 +16,7 @@ while True:
                         camera_frame_state=np.array([[2, 2, 2], [4, 4, 4]]),
                         gripper_frame_state=np.array([[4, 4, 4], [5, 5, 5]]))
 
-    if cora_srv.command_msg != last_command:
+    if cora_srv.get_command() != last_command:
         try:
             print('Received Command:')
             last_command = cora_srv.get_command()
