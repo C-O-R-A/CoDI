@@ -659,8 +659,8 @@ class CoraServer(CoraInterface):
                         socket_["connected"] = True
                         print(f"Accepted {name} from {addr}")
 
-                    except OSError as e:
-                        print(f"Accept failed: {e}")
+                    except Exception:
+                        continue
 
         # Mark alive once all connections are in
         for socket_ in self.sockets.values():
@@ -671,13 +671,13 @@ class CoraServer(CoraInterface):
     def cleanup(self):
         for socket_ in self.sockets.values():
             conn = socket_["socket"]
-            if conn:
+            if conn is not None:
                 try:
                     conn.shutdown(socket.SHUT_RDWR)
                     conn.close()
                     socket_["socket"] = None
-                except OSError:
-                    print("OSError in cleanup")
+                except OSError as e:
+                    print(f"OSError in cleanup: {e}")
                     pass
 
     def receive_command(self):
