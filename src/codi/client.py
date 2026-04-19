@@ -224,7 +224,7 @@ class CoraInterface:
 
             except OSError as e:
                 if socket_["alive"]:
-                    print(f"{socket_} socket died: {e}")
+                    print(f"socket died: {e}")
                     socket_["alive"] = False
                     time.sleep(0.1)
                 continue
@@ -509,7 +509,7 @@ class CoraClient(CoraInterface):
         payload = pt.encode_commands(
             rt, space, interface_type, target, gripper_command, command, predef_pose
         )
-        self._socket_send(self.command_socket, payload)
+        self._socket_send(self.sockets["command_socket"], payload)
 
     def configure_robot(self, **kwargs):
         self.use_controller = kwargs.get("use_controller")
@@ -525,7 +525,7 @@ class CoraClient(CoraInterface):
         )
 
         self._socket_send(
-            self.configuration_socket,
+            self.sockets["config_socket"],
             payload,
         )
 
