@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -12,8 +15,12 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      - run: pip install sphinx furo ghp-import sphinx-autodoc-typehints sphinx-rtd-theme
+      - run: pip install sphinx furo ghp-import sphinx-autodoc-typehints
       - run: cd docs && make html
-      - run: ghp-import -n -p -f docs/build/html
+      - name: Deploy to GitHub Pages
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          ghp-import -n -p -f docs/build/html
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
