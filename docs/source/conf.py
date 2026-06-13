@@ -16,7 +16,7 @@ release = '0.1.0'
 
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../..'))  # adjust to point at your package root
+sys.path.insert(0, os.path.abspath('../../src'))  # adjust to point at your package root
 
 extensions = [
     'sphinx.ext.autodoc',
