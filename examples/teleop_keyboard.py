@@ -87,6 +87,8 @@ client.send_command(
     target="Gripper",
     gripper_command=0.01,
     command=np.array([[0.60, 0.0, 0.2, 1], [0.0, 0.0, -0.7070727, 0.7070727]]),
+    predef_pose='standby',
+    verbose=False,
 )
 
 time.sleep(10)

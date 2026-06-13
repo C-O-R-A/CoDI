@@ -19,6 +19,37 @@ from . import validation as val
 
 
 class CoraInterface:
+    """Base class providing low-level socket management for Cora robot communication.
+
+    Manages five TCP sockets: command, states, video, config, and vision.
+    Subclasses :class:`CoraClient` and :class:`CoraServer` extend this with
+    client- and server-side lifecycle logic respectively.
+
+    :param filepath: Absolute path to a YAML or JSON config file containing
+        ``host`` and ``ports`` keys. If omitted, pass host and ports as kwargs.
+    :type filepath: str, optional
+    :param kwargs:
+        - **host** (*str*) -- TCP hostname or IP of the robot.
+        - **ports** (*dict*) -- Mapping of port keys to port numbers:
+
+          - ``video_port`` -- port for video streaming
+          - ``command_port`` -- port for sending/receiving commands
+          - ``states_port`` -- port for sending/receiving robot states
+          - ``config_port`` -- port for setting/receiving robot configuration
+          - ``vision_port`` -- port for receiving ArUco marker poses
+
+    :raises ValueError: If the provided hostname cannot be resolved.
+
+    Example config YAML::
+
+        host: 192.168.1.100
+        ports:
+          command_port: 5000
+          states_port: 5001
+          video_port: 5002
+          config_port: 5003
+          vision_port: 5004
+    """
 
     def __init__(self, filepath: str = None, **kwargs):
         """
@@ -107,10 +138,25 @@ class CoraInterface:
         self._set_move_status("initializing")
 
     def _create_sockets(self):
+        """Instantiate a new TCP socket object for each entry in :attr:`sockets`.
+
+        Called before each connection attempt to ensure fresh socket objects.
+        All sockets use ``AF_INET`` and ``SOCK_STREAM`` (TCP).
+        """
         for socket_val in self.sockets.values():
             socket_val["socket"] = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     def _kill(self, stop_listening=True):
+        """Shut down all sockets and stop the receive loops.
+
+        Sets ``_running`` to ``False``, optionally shuts down and closes every
+        socket, then calls :meth:`cleanup`.
+
+        :param stop_listening: If ``True`` (default), shut down and close all
+            sockets. Pass ``False`` on the server side when you want to keep
+            the listening sockets open for the next client connection.
+        :type stop_listening: bool
+        """
         if self._running is False:
             print("Client is already stopped.")
             return
@@ -135,13 +181,33 @@ class CoraInterface:
         return
 
     def _set_move_status(self, status: str):
+        """Validate and set the robot's current move status.
+
+        :param status: Status string to validate via :func:`validation.status`.
+        :type status: str
+        """
         self.move_status = val.status(status)
 
     def _end_interface(self):
+        """Stop the interface and the supervisor loop.
+
+        Calls :meth:`_kill` and sets ``_supervisor_running`` to ``False``.
+        """
         self._kill()
         self._supervisor_running = False
 
     def _is_socket_alive(self, connection, timeout=0.2):
+        """Check whether a socket connection is still usable.
+
+        Uses :func:`select.select` to poll for error conditions.
+
+        :param connection: The socket to probe.
+        :type connection: socket.socket or None
+        :param timeout: Seconds to wait for the select call.
+        :type timeout: float
+        :returns: ``True`` if the socket appears healthy, ``False`` otherwise.
+        :rtype: bool
+        """
         if connection is None:
             return False
 
@@ -159,9 +225,18 @@ class CoraInterface:
             return False
 
     def _recv_exact(self, connection, n) -> bytes | None:
-        """
-        Receive exactly n bytes from the socket.
-        Returns None if the connection is closed before n bytes are read.
+        """Receive exactly ``n`` bytes from a socket.
+
+        Loops on :meth:`socket.recv` until all ``n`` bytes have been
+        accumulated, handling partial reads transparently.
+
+        :param connection: The socket to read from.
+        :type connection: socket.socket
+        :param n: Exact number of bytes to receive.
+        :type n: int
+        :returns: The received bytes, or ``None`` if the connection closes
+            before ``n`` bytes are read.
+        :rtype: bytes or None
         """
         data = bytearray()
         while len(data) < n:
@@ -175,9 +250,16 @@ class CoraInterface:
         return bytes(data)
 
     def _receive(self, connection) -> bytes | None:
-        """
-        Receive a length-prefixed message from the socket.
-        Returns None if the connection is closed or data is invalid.
+        """Receive a length-prefixed message from a socket.
+
+        Reads a 4-byte big-endian length header, then reads exactly that many
+        bytes of payload. This framing protocol is used for all CoDI messages.
+
+        :param connection: The socket to read from.
+        :type connection: socket.socket
+        :returns: The raw payload bytes, or ``None`` if the connection is
+            closed or the length field is invalid.
+        :rtype: bytes or None
         """
         # Read 4-byte length prefix
         raw_length = self._recv_exact(connection, 4)
@@ -196,14 +278,33 @@ class CoraInterface:
         return payload
 
     def _send(self, connection, payload: bytes):
+        """Send a length-prefixed message over a socket.
+
+        Prepends a 4-byte big-endian length header to ``payload`` and sends
+        the whole buffer atomically with :meth:`socket.sendall`.
+
+        :param connection: The socket to write to.
+        :type connection: socket.socket
+        :param payload: Raw bytes to send.
+        :type payload: bytes
+        """
         length = len(payload)
         connection.sendall(length.to_bytes(4, "big") + payload)
 
     def _socket_receive_loop(self, socket_):
-        """
-        Generic method to continuously receive data from a socket.
+        """Continuously receive and decode messages from a socket.
 
-        :param socket_: socket to read from
+        Runs until ``_running`` is ``False`` or the thread's stop event is
+        set. Each successfully decoded message is stored in
+        ``socket_["message"]`` and can be retrieved via :meth:`get_info`.
+
+        If the socket dies, the loop marks it as not alive, sleeps briefly,
+        and then continues so the lifecycle handler can reconnect.
+
+        :param socket_: Entry from :attr:`sockets` containing at minimum
+            ``socket``, ``decoder``, ``alive``, ``message``, and ``thread``
+            keys.
+        :type socket_: dict
         """
         print("initiating receive loop")
         stop_event = socket_["thread"]["stop_event"] if socket_["thread"] else None
@@ -228,11 +329,16 @@ class CoraInterface:
                 continue
 
     def _socket_send(self, socket_, payload):
-        """
-        Generic method to send data over a socket safely.
+        """Send a payload over a socket, encoding it if necessary.
 
-        :param socket_: socket object to send through
-        :param payload: bytes to send
+        If ``payload`` is not already ``bytes``, it is passed through the
+        socket's encoder first. Skips the send silently if ``_running`` is
+        ``False`` or the socket is not alive.
+
+        :param socket_: Entry from :attr:`sockets` containing ``socket``,
+            ``encoder``, and ``alive`` keys.
+        :type socket_: dict
+        :param payload: Data to send; will be encoded if not already ``bytes``.
         """
         if self._running:
             payload = (
@@ -254,18 +360,41 @@ class CoraInterface:
                 return
 
     def get_info(self, name):
-        """
-        Generic getter for the latest message from a socket. Name should be one of:
-        'command', 'states', 'video', 'config', 'vision'
+        """Return the most recently received message from a named socket.
+
+        :param name: Socket key without the ``_socket`` suffix, e.g.
+            ``'command'``, ``'states'``, ``'video'``, ``'config'``,
+            or ``'vision'``.
+
+            .. note::
+                The full dict key is ``name + '_socket'``, so pass
+                ``'states'`` to read from ``states_socket``.
+
+        :type name: str
+        :returns: The last decoded message stored by the receive loop, or
+            ``None`` if no message has arrived yet.
         """
         return self.sockets[name]["message"]
 
 
 class CoraClient(CoraInterface):
-    """
-    :param self:
-    :param file: Yaml or Json socket config file
-    :param kwargs: host: str, video_port: str, command_port: str, states_port: str, config_port:str
+    """High-level client that connects to a running :class:`CoraServer`.
+
+    Extends :class:`CoraInterface` with a lifecycle handler that
+    automatically reconnects, configures, and sets up the robot connection
+    after any drop. Provides the public API for sending commands, receiving
+    states/frames/vision poses, and updating robot options.
+
+    :param filepath: Absolute path to a YAML or JSON config file.
+    :type filepath: str, optional
+    :param kwargs:
+        - **host** (*str*) -- Robot TCP hostname.
+        - **ports** (*dict*) -- Port mapping (see :class:`CoraInterface`).
+        - **use_controller** (*bool*) -- Enable gamepad/controller input.
+          Default ``False``.
+        - **use_camera** (*bool*) -- Enable video streaming. Default ``False``.
+        - **use_vision** (*bool*) -- Enable ArUco marker detection.
+          Default ``False``.
     """
 
     def __init__(self, filepath: str = None, **kwargs):
@@ -275,6 +404,14 @@ class CoraClient(CoraInterface):
         self.use_vision = kwargs.get("use_vision", False)
 
     def _lifecycle_handler(self):
+        """Supervise the connection state machine in a background thread.
+
+        Cycles through the states ``disconnected`` → ``connected`` →
+        ``configured`` → ``ready``, calling :meth:`connect`,
+        :meth:`configure`, and :meth:`setup` at the appropriate transitions.
+        If any of the core sockets die the handler tears down and reconnects
+        automatically.
+        """
         self._supervisor_running = True
         while self._supervisor_running:
             time.sleep(0.5)
@@ -309,10 +446,11 @@ class CoraClient(CoraInterface):
                     continue
 
     def _activate(self):
-        """
-        Docstring for _connect
+        """Start the lifecycle handler and begin the connection process.
 
-        :param self: Description
+        Sets ``_interface_state`` to ``'disconnected'`` and launches
+        :meth:`_lifecycle_handler` as a daemon thread. This is the primary
+        entry point for bringing a :class:`CoraClient` online.
         """
         with self.interface_state_lock:
             self._interface_state = "disconnected"
@@ -321,6 +459,20 @@ class CoraClient(CoraInterface):
         ).start()
 
     def _connect_with_retry(self, socket_, name, retries=50, delay=0.1):
+        """Attempt to connect a single socket, retrying on refusal.
+
+        :param socket_: Entry from :attr:`sockets` containing ``socket``
+            and ``port`` keys.
+        :type socket_: dict
+        :param name: Human-readable name used in log/error messages.
+        :type name: str
+        :param retries: Maximum number of connection attempts.
+        :type retries: int
+        :param delay: Seconds to wait between attempts.
+        :type delay: float
+        :raises ConnectionError: If the connection fails for a non-refusal
+            reason, or if all retries are exhausted.
+        """
         for i in range(retries):
             try:
                 socket_["socket"].connect((self.arm_host, socket_["port"]))
@@ -334,6 +486,15 @@ class CoraClient(CoraInterface):
         raise ConnectionError(f"{name} failed after {retries} retries")
 
     def connect(self):
+        """Connect all sockets to the server with automatic retry.
+
+        Iterates over every entry in :attr:`sockets` and calls
+        :meth:`_connect_with_retry`. Marks each socket as alive after a
+        successful connection.
+
+        :raises ConnectionError: If any socket cannot connect within the
+            retry budget.
+        """
         for socket_name, socket_ in self.sockets.items():
             self._connect_with_retry(socket_, socket_name, retries=100, delay=0.1)
             socket_["alive"] = True
@@ -341,6 +502,12 @@ class CoraClient(CoraInterface):
         print("Connected to Cora Server")
 
     def configure(self):
+        """Half-close directional sockets to enforce read-only/write-only modes.
+
+        Shuts down the write end of read-only sockets and the read end of
+        write-only sockets, preventing accidental use in the wrong direction.
+        Applies to ``states_socket``, ``video_socket``, and ``command_socket``.
+        """
         for socket_name in ["states_socket", "video_socket", "command_socket"]:
             try:
                 socket_ = self.sockets[socket_name]
@@ -354,11 +521,27 @@ class CoraClient(CoraInterface):
         print("Configured Cora Client")
 
     def setup(self):
+        """Initialise threads and apply current option flags.
+
+        Called once the connection is configured. Runs :meth:`init_threads`
+        to register thread targets, then :meth:`update_options` to start
+        whichever receive threads are required.
+        """
         self.init_threads()
         self.update_options()
         print("Cora Client finished setup")
 
     def init_threads(self):
+        """Register thread metadata and targets for the receive sockets.
+
+        Populates the ``thread`` sub-dict for ``video_socket``,
+        ``states_socket``, and ``vision_socket`` with targets pointing to
+        :meth:`receive_frame`, :meth:`receive_states`, and
+        :meth:`receive_vision_poses` respectively.
+
+        Does **not** start any threads; call :meth:`start_thread` or
+        :meth:`update_options` for that.
+        """
         for socket_name in ["video_socket", "states_socket", "vision_socket"]:
             self.sockets[socket_name]["thread"] = {
                 "target": None,
@@ -373,6 +556,14 @@ class CoraClient(CoraInterface):
         self.sockets["vision_socket"]["thread"]["target"] = self.receive_vision_poses
 
     def start_thread(self, name):
+        """Start the receive thread for a named socket if it is not already running.
+
+        Clears the stop event and spawns a new daemon thread using the
+        target registered in :meth:`init_threads`.
+
+        :param name: Socket key, e.g. ``'video_socket'`` or ``'states_socket'``.
+        :type name: str
+        """
         try:
             entry = self.sockets[name]["thread"]
 
@@ -392,6 +583,14 @@ class CoraClient(CoraInterface):
             return
 
     def stop_thread(self, name):
+        """Stop the receive thread for a named socket.
+
+        Sets the stop event, joins the thread with a 1-second timeout, and
+        clears the thread reference.
+
+        :param name: Socket key to stop.
+        :type name: str
+        """
         try:
             entry = self.sockets[name]["thread"]
 
@@ -408,10 +607,16 @@ class CoraClient(CoraInterface):
             return
 
     def reconcile_threads(self, active_set):
-        """
-        active_set: iterable of thread names that SHOULD be running
-        """
+        """Start or stop socket threads to match a desired active set.
 
+        Compares each socket's current running state against ``active_set``
+        and calls :meth:`start_thread` or :meth:`stop_thread` as needed.
+        Sockets without a ``thread`` sub-dict are silently skipped.
+
+        :param active_set: Iterable of socket names that **should** be running,
+            e.g. ``{'states_socket', 'video_socket'}``.
+        :type active_set: iterable of str
+        """
         for name, entry in self.sockets.items():
             try:
                 should_run = name in active_set
@@ -427,11 +632,21 @@ class CoraClient(CoraInterface):
                 continue
 
     def kill_options(self):
+        """Disable all optional feature flags.
+
+        Sets :attr:`use_controller`, :attr:`use_camera`, and
+        :attr:`use_vision` to ``False``. Called by :meth:`cleanup` before
+        tearing down threads.
+        """
         self.use_controller = False
         self.use_camera = False
         self.use_vision = False
 
     def cleanup(self):
+        """Disable all options and stop all running threads.
+
+        Called automatically by :meth:`_kill`. Safe to call multiple times.
+        """
         # Disable all options
         self.kill_options()
 
@@ -442,10 +657,13 @@ class CoraClient(CoraInterface):
         return
 
     def update_options(self):
-        """
-        Docstring for update_options
+        """Reconcile running threads with current feature flags.
 
-        :param self: Description
+        Builds the set of sockets that should be active based on
+        :attr:`use_vision`, :attr:`use_camera`, and always-on
+        ``states_socket``, then calls :meth:`reconcile_threads`.
+
+        Call this after changing any ``use_*`` attribute to apply the update.
         """
         active = set()
         if self.use_vision:
@@ -462,35 +680,66 @@ class CoraClient(CoraInterface):
     # ----------------------
 
     def receive_states(self):
-        """
-        While socket is connected to server it listens
-        over Ethernet TCP socket for state information
-        and stores it in the sockets dict in the Cora client object.
+        """Continuously receive robot state messages from the server.
+
+        Runs :meth:`_socket_receive_loop` on ``states_socket``. Decoded
+        messages are stored in ``sockets['states_socket']['message']`` and
+        accessible via :meth:`get_states`.
+
+        Intended to run in the dedicated states thread started by
+        :meth:`start_thread`.
         """
         self._socket_receive_loop(
             socket_=self.sockets["states_socket"],
         )
 
     def get_states(self):
+        """Return the most recently received robot state message.
+
+        :returns: Decoded pose feedback, or ``None`` if none has arrived yet.
+        """
         return self.get_info("states_socket")
 
     def receive_vision_poses(self):
+        """Continuously receive ArUco marker pose messages from the server.
+
+        Runs :meth:`_socket_receive_loop` on ``vision_socket``. Decoded
+        messages are accessible via :meth:`get_vision_poses`.
+
+        Intended to run in the dedicated vision thread started by
+        :meth:`start_thread`.
+        """
         self._socket_receive_loop(
             socket_=self.sockets["vision_socket"],
         )
 
     def get_vision_poses(self):
+        """Return the most recently received ArUco marker poses.
+
+        :returns: Decoded vision poses, or ``None`` if none has arrived yet.
+        """
         return self.get_info("vision_socket")
 
     def receive_frame(self):
-        """
-        Continuously receive frames from the video socket and decode them.
+        """Continuously receive and decode video frames from the server.
+
+        Runs :meth:`_socket_receive_loop` on ``video_socket``. Decoded
+        frames are accessible via :meth:`get_frame`.
+
+        Intended to run in the dedicated video thread started by
+        :meth:`start_thread`.
         """
         self._socket_receive_loop(
             socket_=self.sockets["video_socket"],
         )
 
     def get_frame(self):
+        """Return the most recently received video frame.
+
+        :returns: Decoded image (numpy array), or ``None`` if none has
+            arrived yet.
+        :rtype: numpy.ndarray or None
+        """
         return self.get_info("video_socket")
 
     def send_command(
@@ -504,12 +753,40 @@ class CoraClient(CoraInterface):
         predef_pose,
         verbose=True,
     ):
+        """Encode and send a motion command to the server.
+
+        All parameters are forwarded directly to :func:`protocol.encode_commands`
+        before being sent over ``command_socket``.
+
+        :param rt: Real-time flag or timestep identifier.
+        :param space: Coordinate space for the command (e.g. joint or Cartesian).
+        :param interface_type: Interface mode identifier.
+        :param target: Target pose or joint configuration.
+        :param gripper_command: Gripper open/close command value.
+        :param command: High-level command type identifier.
+        :param predef_pose: Index or name of a predefined pose, if applicable.
+        :param verbose: If ``True``, the protocol layer may log additional
+            information. Default ``True``.
+        :type verbose: bool
+        """
         payload = pt.encode_commands(
             rt, space, interface_type, target, gripper_command, command, predef_pose
         )
         self._socket_send(self.sockets["command_socket"], payload)
 
     def configure_robot(self, **kwargs):
+        """Update feature flags and send the new configuration to the server.
+
+        Updates :attr:`use_controller`, :attr:`use_camera`, and
+        :attr:`use_vision` from ``kwargs``, calls :meth:`update_options` to
+        reconcile threads, then encodes and sends the config payload over
+        ``config_socket``.
+
+        :param kwargs:
+            - **use_controller** (*bool*) -- Enable gamepad input.
+            - **use_camera** (*bool*) -- Enable video streaming.
+            - **use_vision** (*bool*) -- Enable ArUco marker detection.
+        """
         self.use_controller = kwargs.get("use_controller")
         self.use_camera = kwargs.get("use_camera")
         self.use_vision = kwargs.get("use_vision")
@@ -529,6 +806,19 @@ class CoraClient(CoraInterface):
 
 
 class CoraServer(CoraInterface):
+    """Server-side interface that accepts connections from a :class:`CoraClient`.
+
+    Binds all five sockets, listens for the client, and exposes methods to
+    push state, vision, and video data back to the client while receiving
+    commands and configuration updates.
+
+    The server's lifecycle handler automatically re-accepts a new client
+    connection after a disconnect, making it resilient to client restarts.
+
+    :param filepath: Absolute path to a YAML or JSON config file.
+    :type filepath: str, optional
+    :param kwargs: Host and ports mapping (see :class:`CoraInterface`).
+    """
 
     def __init__(self, filepath: str = None, **kwargs):
         super().__init__(filepath=filepath, **kwargs)
@@ -546,6 +836,11 @@ class CoraServer(CoraInterface):
         return
 
     def start(self):
+        """Bind all sockets and launch the lifecycle handler.
+
+        This is the primary entry point for bringing a :class:`CoraServer`
+        online. After this call the server waits for a client to connect.
+        """
         self._running = True
         self._create_sockets()
         self.bind()
@@ -557,10 +852,20 @@ class CoraServer(CoraInterface):
         ).start()
 
     def connect(self):
+        """Accept incoming client connections if the server is running.
+
+        Delegates to :meth:`accept_connections`.
+        """
         if self._running:
             self.accept_connections()
 
     def start_threads(self):
+        """Start receive threads for ``command_socket`` and ``config_socket``.
+
+        Populates thread metadata for each socket in :attr:`threaded_sockets`
+        and spawns daemon threads targeting :meth:`receive_command` and
+        :meth:`receive_config` respectively.
+        """
         if self._running:
             for socket_name in self.threaded_sockets:
                 self.sockets[socket_name]["alive"] = True
@@ -585,6 +890,11 @@ class CoraServer(CoraInterface):
                 self.sockets[socket_name]["thread"]["thread"].start()
 
     def stop_threads(self):
+        """Stop all threads in :attr:`threaded_sockets`.
+
+        Sets each thread's stop event, joins with a 1-second timeout, and
+        clears the thread reference.
+        """
         for socket_name in self.threaded_sockets:
             socket_ = self.sockets[socket_name]
             if socket_["thread"] and socket_["thread"]["thread"].is_alive():
@@ -593,6 +903,13 @@ class CoraServer(CoraInterface):
                 socket_["thread"]["thread"] = None
 
     def _lifecycle_handler(self):
+        """Supervise the server connection state machine in a background thread.
+
+        Cycles through ``disconnected`` → ``connected`` → ``ready``,
+        calling :meth:`connect` and :meth:`start_threads` at the appropriate
+        transitions. If the command or config socket dies, tears down and
+        waits for the next client automatically.
+        """
         with self.interface_state_lock:
             self._interface_state = "disconnected"
         while True:
@@ -624,6 +941,12 @@ class CoraServer(CoraInterface):
                 continue
 
     def bind(self):
+        """Bind and begin listening on all sockets.
+
+        Calls :meth:`socket.bind` and :meth:`socket.listen` (backlog 1) on
+        every socket using the configured host and port. Prints a confirmation
+        when all sockets are listening.
+        """
         for socket_ in self.sockets.values():
             socket_["socket"].bind((self.arm_host, socket_["port"]))
 
@@ -635,6 +958,13 @@ class CoraServer(CoraInterface):
         print("Listening for Cora Client ...")
 
     def accept_connections(self):
+        """Accept one client connection on each socket.
+
+        Uses :func:`select.select` to wait non-blockingly for incoming
+        connections. Loops until all sockets have an accepted connection or
+        ``_running`` becomes ``False``. Marks every socket as alive once all
+        connections are established.
+        """
         print("Waiting for client connections...")
 
         while self._running and not all(
@@ -669,6 +999,12 @@ class CoraServer(CoraInterface):
         print("All client connections established")
 
     def cleanup(self):
+        """Shut down and close all accepted client connections.
+
+        Iterates over :attr:`sockets`, calling ``shutdown`` and ``close`` on
+        each connected socket. Silently ignores ``OSError`` to handle
+        already-closed sockets gracefully.
+        """
         for socket_ in self.sockets.values():
             conn = socket_["socket"]
             if conn is not None:
@@ -681,37 +1017,84 @@ class CoraServer(CoraInterface):
                     pass
 
     def receive_command(self):
+        """Continuously receive motion commands from the client.
+
+        Runs :meth:`_socket_receive_loop` on ``command_socket``. Decoded
+        commands are stored in ``sockets['command_socket']['message']`` and
+        retrievable via :meth:`get_command`.
+
+        Intended to run in the dedicated command thread started by
+        :meth:`start_threads`.
+        """
         self._socket_receive_loop(
             socket_=self.sockets["command_socket"],
         )
 
     def get_command(self):
+        """Return the most recently received command from the client.
+
+        :returns: Decoded command data, or ``None`` if no command has arrived.
+        """
         return self.get_info("command_socket")
 
     def receive_config(self):
+        """Continuously receive configuration updates from the client.
+
+        Runs :meth:`_socket_receive_loop` on ``config_socket``. Decoded
+        configs are accessible via :meth:`get_config`.
+
+        Intended to run in the dedicated config thread started by
+        :meth:`start_threads`.
+        """
         self._socket_receive_loop(
             socket_=self.sockets["config_socket"],
         )
 
     def get_config(self):
+        """Return the most recently received configuration from the client.
+
+        :returns: Decoded configuration tuple/object, or ``None`` if none
+            has arrived yet.
+        """
         return self.get_info("config_socket")
 
     def send_state(
         self, status, space, end_effector_state, camera_frame_state, gripper_frame_state
     ):
+        """Encode and send the current robot state to the client.
+
+        :param status: Current move/motion status string.
+        :param space: Active coordinate space identifier.
+        :param end_effector_state: End-effector pose (position + orientation).
+        :param camera_frame_state: Camera frame pose relative to the robot base.
+        :param gripper_frame_state: Gripper frame pose relative to the robot base.
+        """
         payload = pt.encode_pose_feedback(
             status, space, end_effector_state, camera_frame_state, gripper_frame_state
         )
         self._socket_send(self.sockets["states_socket"], payload)
 
     def send_vision_poses(self, ids, poses: NDArray):
+        """Encode and send detected ArUco marker poses to the client.
+
+        :param ids: Array of detected marker IDs.
+        :param poses: Array of corresponding 4x4 pose matrices, shape ``(N, 4, 4)``.
+        :type poses: numpy.ndarray
+        """
         payload = pt.encode_aruco_poses(ids, poses)
         self._socket_send(self.sockets["vision_socket"], payload)
 
     def send_frame(self, image: NDArray, encoding: str = "jpeg", quality: int = 90):
-        """
-        Encode a frame and send it over the video TCP socket.
-        :param image: numpy array (H x W x C)
+        """Encode and send a video frame to the client.
+
+        :param image: RGB image as a NumPy array with shape ``(H, W, C)``.
+        :type image: numpy.ndarray
+        :param encoding: Codec to use for compression, e.g. ``'jpeg'`` or
+            ``'png'``. Default ``'jpeg'``.
+        :type encoding: str
+        :param quality: Compression quality (0-100). Only meaningful for
+            lossy codecs like JPEG. Default ``90``.
+        :type quality: int
         """
         payload = pt.image_to_bytes(image, encoding=encoding, quality=quality)
         self._socket_send(self.sockets["video_socket"], payload)
