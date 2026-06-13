@@ -15,7 +15,7 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      - run: pip install sphinx furo ghp-import sphinx-autodoc-typehints
+      - run: pip install sphinx furo ghp-import sphinx-autodoc-typehints sphinx-rtd-theme
       - run: cd docs && make html
       - name: Deploy to GitHub Pages
         run: |
