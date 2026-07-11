@@ -118,5 +118,12 @@ class JointStateObject():
 class TransformObject():
     parent: str
     child: str
-    position: list[float]
-    orientation: list[float]
+    position: Vector3
+    orientation: Quaternion
+
+
+@dataclass
+class FeedbackObject():
+    joint_states: dict[str, JointStateObject]
+    transforms: TransformObject
+    status: int

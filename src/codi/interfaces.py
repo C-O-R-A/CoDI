@@ -21,7 +21,10 @@ from codi.messages import (
     CommandMessage,
     FeedbackMessage,
     ImageMessage,
-    ConfigMessage
+    ConfigMessage,
+    JointStateObject,
+    TransformObject,
+    FeedbackObject,
 )
 
 
@@ -179,13 +182,13 @@ class CoraInterface:
 
         return
 
-    def _set_move_status(self, status: str):
+    def _set_move_status(self, status: int):
         """Validate and set the robot's current move status.
 
         :param status: Status string to validate via :func:`validation.status`.
         :type status: str
         """
-        self.move_status = val.status(status)
+        self.move_status = status
 
     def _end_interface(self):
         """Stop the interface and the supervisor loop.
@@ -692,7 +695,45 @@ class CoraClient(CoraInterface):
 
         :returns: Decoded pose feedback, or ``None`` if none has arrived yet.
         """
-        return self.get_info("states_socket")
+        feedback: FeedbackMessage = self.get_info("states_socket")
+        feedback_object = FeedbackObject()
+        
+        # Joint States
+        joint_states = feedback.joint_states
+        joint_states_dict = {}
+        for i, _ in enumerate(joint_states.name):
+            name = joint_states.name[i]
+            joint_position = joint_states.position[i]
+            velocity = joint_states.velocity[i]
+            effort = joint_states.effort[i]
+
+            joint_states_obj = JointStateObject(joint_position, velocity, effort)
+            joint_states_dict[name] = joint_states_obj
+        
+        feedback_object.joint_states = joint_states_dict
+        
+        # Transforms
+        transforms = feedback.transforms
+        robot_states = []
+        
+        for tf in transforms:
+            parent = tf.header.frame_id
+            child = tf.child_frame_id
+            tf_position = tf.transform.translation
+            orientation = tf.transdform.rotation
+            
+            transforms_obj = TransformObject(
+                parent,
+                child,
+                tf_position,
+                orientation
+            )
+            robot_states.append(transforms_obj)
+
+        feedback_object.transforms = robot_states    
+        
+        feedback_object.status = feedback.status
+        return feedback_object
 
     def receive_frame(self):
         """Continuously receive and decode video frames from the server.
@@ -725,16 +766,13 @@ class CoraClient(CoraInterface):
         All parameters are forwarded directly to :func:`protocol.encode_commands`
         before being sent over ``command_socket``.
 
-        :param rt: Real-time flag or timestep identifier.
-        :param space: Coordinate space for the command (e.g. joint or Cartesian).
-        :param interface_type: Interface mode identifier.
-        :param target: Target pose or joint configuration.
-        :param gripper_command: Gripper open/close command value.
-        :param command: High-level command type identifier.
-        :param predef_pose: Index or name of a predefined pose, if applicable.
-        :param verbose: If ``True``, the protocol layer may log additional
-            information. Default ``True``.
-        :type verbose: bool
+        :param:     pose_command
+        :param:     joint_command
+        :param:     interface_type
+        :param:     rt
+        :param:     target 
+        :param:     gripper_command 
+        :param:     predef_pose
         """
         try:
             payload = pt.encode(CommandMessage(**kwargs))
@@ -1024,30 +1062,22 @@ class CoraServer(CoraInterface):
         return self.get_info("config_socket")
 
     def send_state(
-        self, status, space, end_effector_state, camera_frame_state, gripper_frame_state
+        self, transforms: dict, jointstates: dict, status: int
     ):
         """Encode and send the current robot state to the client.
 
-        :param status: Current move/motion status string.
-        :param space: Active coordinate space identifier.
-        :param end_effector_state: End-effector pose (position + orientation).
-        :param camera_frame_state: Camera frame pose relative to the robot base.
-        :param gripper_frame_state: Gripper frame pose relative to the robot base.
+        :param transforms: transforms of the robot as dict
+        :param jointstates: joint states of the robot as a dict
+        :param status: status of the robot
         """
-        payload = pt.encode_pose_feedback(
-            status, space, end_effector_state, camera_frame_state, gripper_frame_state
-        )
+        feedback = {
+            "transforms": transforms,
+            "joint_states": jointstates,
+            "status": status
+        }
+        feedback_msg = FeedbackMessage.model_validate(feedback)
+        payload = pt.encode(feedback_msg)
         self._socket_send(self.sockets["states_socket"], payload)
-
-    def send_vision_poses(self, ids, poses: NDArray):
-        """Encode and send detected ArUco marker poses to the client.
-
-        :param ids: Array of detected marker IDs.
-        :param poses: Array of corresponding 4x4 pose matrices, shape ``(N, 4, 4)``.
-        :type poses: numpy.ndarray
-        """
-        payload = pt.encode_aruco_poses(ids, poses)
-        self._socket_send(self.sockets["vision_socket"], payload)
 
     def send_frame(self, image: NDArray, encoding: str = "jpeg", quality: int = 90):
         """Encode and send a video frame to the client.

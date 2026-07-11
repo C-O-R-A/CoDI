@@ -60,6 +60,7 @@ def bytes_to_image(byte_data: bytes) -> MatLike:
 
 def encode(message) -> bytes:
     """
+    Converts pydantic model messages to bytes.
     """
     message_data = message.model_dump_json()
     return message_data.encode("utf-8")
@@ -67,6 +68,7 @@ def encode(message) -> bytes:
 
 def decode(raw_json_message: bytes, model: Type[T]) -> T:
     """
+    Converts raw json bytes into pydantic models.
     """
     json = raw_json_message.decode("utf-8")
     return model.model_validate_json(json)
