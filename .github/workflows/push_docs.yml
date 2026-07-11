@@ -16,6 +16,7 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install sphinx furo ghp-import sphinx-autodoc-typehints sphinx-rtd-theme
+      - run: pip install -e .   # install codi itself so autodoc can import it
       - run: cd docs && make html
       - name: Deploy to GitHub Pages
         run: |

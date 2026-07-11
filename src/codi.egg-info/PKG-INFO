@@ -1,6 +1,7 @@
 Metadata-Version: 2.4
 Name: codi
 Version: 0.0.0
-Requires-Dist: numpy
-Requires-Dist: Pillow
-Requires-Dist: matplotlib
+Requires-Dist: numpy>=1.23
+Requires-Dist: msgpack>=1.0
+Requires-Dist: opencv-python>=4.8
+Requires-Dist: PyYAML>=6.0

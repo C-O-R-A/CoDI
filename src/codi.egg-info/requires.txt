@@ -1,3 +1,4 @@
-numpy
-Pillow
-matplotlib
+numpy>=1.23
+msgpack>=1.0
+opencv-python>=4.8
+PyYAML>=6.0

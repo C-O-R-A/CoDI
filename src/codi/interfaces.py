@@ -15,7 +15,14 @@ from numpy.typing import NDArray
 import time
 
 from . import protocol as pt
-from . import validation as val
+
+from codi.exeptions import ProtocolSchemaError, ProtocolSemanticError
+from codi.messages import (
+    CommandMessage,
+    FeedbackMessage,
+    ImageMessage,
+    ConfigMessage
+)
 
 
 class CoraInterface:
@@ -74,27 +81,19 @@ class CoraInterface:
 
         self.sockets = {
             "command_socket": {
-                "decoder": pt.decode_commands,
-                "encoder": pt.encode_commands,
+                "model": CommandMessage,
                 "type": "write-only",
             },
             "states_socket": {
-                "decoder": pt.decode_pose_feedback,
-                "encoder": pt.encode_pose_feedback,
+                "model": FeedbackMessage,
                 "type": "read-only",
             },
             "video_socket": {
-                "decoder": pt.bytes_to_image,
-                "encoder": pt.image_to_bytes,
+                "model": ImageMessage,
                 "type": "read-only",
             },
             "config_socket": {
-                "decoder": pt.decode_configs,
-                "encoder": pt.encode_configs,
-            },
-            "vision_socket": {
-                "decoder": pt.decode_aruco_poses,
-                "encoder": pt.encode_aruco_poses,
+                "model": ConfigMessage,
             },
         }
 
@@ -319,7 +318,7 @@ class CoraInterface:
                 if not raw_data:
                     raise OSError("socket closed")
 
-                socket_["message"] = socket_["decoder"](raw_data)
+                socket_["message"] = pt.decode(raw_data, socket_["model"])
 
             except OSError as e:
                 if socket_["alive"]:
@@ -341,11 +340,6 @@ class CoraInterface:
         :param payload: Data to send; will be encoded if not already ``bytes``.
         """
         if self._running:
-            payload = (
-                socket_["encoder"](payload)
-                if not isinstance(payload, bytes)
-                else payload
-            )
             try:
                 if self._is_socket_alive(socket_["socket"], 1) is False:
                     raise OSError("socket not alive")
@@ -700,26 +694,6 @@ class CoraClient(CoraInterface):
         """
         return self.get_info("states_socket")
 
-    def receive_vision_poses(self):
-        """Continuously receive ArUco marker pose messages from the server.
-
-        Runs :meth:`_socket_receive_loop` on ``vision_socket``. Decoded
-        messages are accessible via :meth:`get_vision_poses`.
-
-        Intended to run in the dedicated vision thread started by
-        :meth:`start_thread`.
-        """
-        self._socket_receive_loop(
-            socket_=self.sockets["vision_socket"],
-        )
-
-    def get_vision_poses(self):
-        """Return the most recently received ArUco marker poses.
-
-        :returns: Decoded vision poses, or ``None`` if none has arrived yet.
-        """
-        return self.get_info("vision_socket")
-
     def receive_frame(self):
         """Continuously receive and decode video frames from the server.
 
@@ -744,14 +718,7 @@ class CoraClient(CoraInterface):
 
     def send_command(
         self,
-        rt,
-        space,
-        interface_type,
-        target,
-        gripper_command,
-        command,
-        predef_pose,
-        verbose=True,
+        **kwargs,
     ):
         """Encode and send a motion command to the server.
 
@@ -769,9 +736,13 @@ class CoraClient(CoraInterface):
             information. Default ``True``.
         :type verbose: bool
         """
-        payload = pt.encode_commands(
-            rt, space, interface_type, target, gripper_command, command, predef_pose
-        )
+        try:
+            payload = pt.encode(CommandMessage(**kwargs))
+            
+        except Exception as e:
+            raise ProtocolSchemaError(
+                f"Invalid command: {e}"
+            ) from e
         self._socket_send(self.sockets["command_socket"], payload)
 
     def configure_robot(self, **kwargs):
@@ -787,18 +758,12 @@ class CoraClient(CoraInterface):
             - **use_camera** (*bool*) -- Enable video streaming.
             - **use_vision** (*bool*) -- Enable ArUco marker detection.
         """
-        self.use_controller = kwargs.get("use_controller")
         self.use_camera = kwargs.get("use_camera")
-        self.use_vision = kwargs.get("use_vision")
 
         self.update_options()
 
-        payload = pt.encode_configs(
-            use_controller=self.use_controller,
-            use_video=self.use_camera,
-            use_vision=self.use_vision,
-        )
-
+        config_msg = ConfigMessage(**kwargs)
+        payload = pt.encode(config_msg)
         self._socket_send(
             self.sockets["config_socket"],
             payload,

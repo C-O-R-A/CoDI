@@ -1,9 +1,9 @@
-.. CORA documentation master file, created by
-   sphinx-quickstart on Sat Jun 13 04:01:08 2026.
+.. CODI documentation master file, created by
+   sphinx-quickstart on Sat Jun 13 15:18:38 2026.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-CORA documentation
+CODI documentation
 ==================
 
 Add your content using ``reStructuredText`` syntax. See the
@@ -16,4 +16,3 @@ documentation for details.
    :caption: Contents:
 
    modules
-

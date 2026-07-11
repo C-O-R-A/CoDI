@@ -4,3 +4,4 @@ opencv-python
 msgpack
 pyaml
 pynput
+pydantic

@@ -6,3 +6,4 @@ tests/__pycache__
 .pytest_cache
 src/codi/__pycache__
 src/codi.egg-info
+docs/build

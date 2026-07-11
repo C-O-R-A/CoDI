@@ -1,4 +1,4 @@
-from .client import CoraClient
+from .interfaces import CoraClient
 _client = None
 
 
