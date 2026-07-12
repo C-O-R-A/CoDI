@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field, model_validator
 from __future__ import annotations
+from pydantic import BaseModel, Field, model_validator
 from typing import Optional
 from codi.codi_enums import GoalSpace, InterfaceType, MoveStatus
 from dataclasses import dataclass
