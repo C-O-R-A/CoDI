@@ -15,8 +15,6 @@ import numpy as np
 from numpy.typing import NDArray
 import time
 
-from transforms3d.quaternions import quat2mat
-
 from . import protocol as pt
 
 from codi.exeptions import ProtocolSchemaError, ProtocolSemanticError
@@ -690,6 +688,13 @@ class CoraClient(CoraInterface):
 
         :returns: Decoded pose feedback, or ``None`` if none has arrived yet.
         """
+        def _quat2mat(w, x, y, z):
+            return np.array([
+                [1 - 2*(y*y + z*z),     2*(x*y - z*w),     2*(x*z + y*w)],
+                [    2*(x*y + z*w), 1 - 2*(x*x + z*z),     2*(y*z - x*w)],
+                [    2*(x*z - y*w),     2*(y*z + x*w), 1 - 2*(x*x + y*y)],
+            ])
+
         feedback: FeedbackMessage = self.get_info("states_socket")
         feedback_object = FeedbackObject()
         
@@ -717,7 +722,7 @@ class CoraClient(CoraInterface):
             t = tf.transform.translation
             q = tf.transform.rotation
             tf_mat = np.eye(4)
-            tf_mat[:3, :3] = quat2mat([q.w, q.x, q.y, q.z])
+            tf_mat[:3, :3] = _quat2mat([q.w, q.x, q.y, q.z])
             tf_mat[:3, 3] = [t.x, t.y, t.z]
             
             transforms_obj = TransformObject(
