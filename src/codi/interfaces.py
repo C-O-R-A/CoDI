@@ -11,8 +11,11 @@ import threading
 from pathlib import Path
 from yaml import safe_load
 import json as js
+import numpy as np
 from numpy.typing import NDArray
 import time
+
+from transforms3d.quaternions import quat2mat
 
 from . import protocol as pt
 
@@ -26,7 +29,7 @@ from codi.messages import (
     TransformObject,
     FeedbackObject,
 )
-
+import cv2
 
 class CoraInterface:
     """Base class providing low-level socket management for Cora robot communication.
@@ -58,7 +61,6 @@ class CoraInterface:
           states_port: 5001
           video_port: 5002
           config_port: 5003
-          vision_port: 5004
     """
 
     def __init__(self, filepath: str = None, **kwargs):
@@ -73,7 +75,6 @@ class CoraInterface:
                         command_port: port for sending/receiving commands \n
                         states_port: port for sending/receiving states \n
                         config_port: port for setting/receiving robot param configs \n
-                        vision_port: port for receiving marker poses
                     ]
         """
 
@@ -398,7 +399,6 @@ class CoraClient(CoraInterface):
         super().__init__(filepath=filepath, **kwargs)
         self.use_controller = kwargs.get("use_controller", False)
         self.use_camera = kwargs.get("use_camera", False)
-        self.use_vision = kwargs.get("use_vision", False)
 
     def _lifecycle_handler(self):
         """Supervise the connection state machine in a background thread.
@@ -539,7 +539,7 @@ class CoraClient(CoraInterface):
         Does **not** start any threads; call :meth:`start_thread` or
         :meth:`update_options` for that.
         """
-        for socket_name in ["video_socket", "states_socket", "vision_socket"]:
+        for socket_name in ["video_socket", "states_socket"]:
             self.sockets[socket_name]["thread"] = {
                 "target": None,
                 "thread": None,
@@ -550,7 +550,6 @@ class CoraClient(CoraInterface):
 
         self.sockets["video_socket"]["thread"]["target"] = self.receive_frame
         self.sockets["states_socket"]["thread"]["target"] = self.receive_states
-        self.sockets["vision_socket"]["thread"]["target"] = self.receive_vision_poses
 
     def start_thread(self, name):
         """Start the receive thread for a named socket if it is not already running.
@@ -635,9 +634,7 @@ class CoraClient(CoraInterface):
         :attr:`use_vision` to ``False``. Called by :meth:`cleanup` before
         tearing down threads.
         """
-        self.use_controller = False
         self.use_camera = False
-        self.use_vision = False
 
     def cleanup(self):
         """Disable all options and stop all running threads.
@@ -663,8 +660,6 @@ class CoraClient(CoraInterface):
         Call this after changing any ``use_*`` attribute to apply the update.
         """
         active = set()
-        if self.use_vision:
-            active.add("vision_socket")
 
         if self.use_camera:
             active.add("video_socket")
@@ -719,14 +714,18 @@ class CoraClient(CoraInterface):
         for tf in transforms:
             parent = tf.header.frame_id
             child = tf.child_frame_id
-            tf_position = tf.transform.translation
-            orientation = tf.transdform.rotation
+            t = tf.transform.translation
+            q = tf.transform.rotation
+            tf_mat = np.eye(4)
+            tf_mat[:3, :3] = quat2mat([q.w, q.x, q.y, q.z])
+            tf_mat[:3, 3] = [t.x, t.y, t.z]
             
             transforms_obj = TransformObject(
                 parent,
                 child,
-                tf_position,
-                orientation
+                t,
+                q,
+                tf_mat,
             )
             robot_states.append(transforms_obj)
 
@@ -755,7 +754,15 @@ class CoraClient(CoraInterface):
             arrived yet.
         :rtype: numpy.ndarray or None
         """
-        return self.get_info("video_socket")
+        image_msg = self.get_info("video_socket")
+        image = np.array(
+            np.reshape(
+                image_msg.data, 
+                image_msg.shape, 
+                dtype=image_msg.dtype
+                )
+            )
+        return image
 
     def send_command(
         self,
@@ -797,7 +804,6 @@ class CoraClient(CoraInterface):
             - **use_vision** (*bool*) -- Enable ArUco marker detection.
         """
         self.use_camera = kwargs.get("use_camera")
-
         self.update_options()
 
         config_msg = ConfigMessage(**kwargs)
@@ -831,10 +837,8 @@ class CoraServer(CoraInterface):
 
         self.command_lock = threading.Lock()
         self.config_lock = threading.Lock()
-        self.use_controller = False
         self.use_video = False
-        self.use_vision = False
-        self.config_msg = (self.use_controller, self.use_video, self.use_vision)
+        self.config_msg = (self.use_video)
         self.threaded_sockets = ["command_socket", "config_socket"]
         return
 
@@ -881,10 +885,12 @@ class CoraServer(CoraInterface):
                     "daemon": True,
                 }
 
-            self.sockets["command_socket"]["thread"]["target"] = self.receive_command
-            self.sockets["config_socket"]["thread"]["target"] = self.receive_config
+                if socket_name == "command_socket":
+                    self.sockets[socket_name]["thread"]["target"] = self.receive_command
+    
+                elif socket_name == "config_socket":
+                    self.sockets[socket_name]["thread"]["target"] = self.receive_config
 
-            for socket_name in self.threaded_sockets:
                 self.sockets[socket_name]["thread"]["thread"] = threading.Thread(
                     target=self.sockets[socket_name]["thread"]["target"],
                     daemon=self.sockets[socket_name]["thread"]["daemon"],
@@ -1036,7 +1042,7 @@ class CoraServer(CoraInterface):
     def get_command(self):
         """Return the most recently received command from the client.
 
-        :returns: Decoded command data, or ``None`` if no command has arrived.
+        :returns: Decoded command pydantic model, or ``None`` if no command has arrived.
         """
         return self.get_info("command_socket")
 
@@ -1056,7 +1062,7 @@ class CoraServer(CoraInterface):
     def get_config(self):
         """Return the most recently received configuration from the client.
 
-        :returns: Decoded configuration tuple/object, or ``None`` if none
+        :returns: Decoded configuration pydantic model, or ``None`` if none
             has arrived yet.
         """
         return self.get_info("config_socket")
@@ -1069,7 +1075,10 @@ class CoraServer(CoraInterface):
         :param transforms: transforms of the robot as dict
         :param jointstates: joint states of the robot as a dict
         :param status: status of the robot
+        
+        :note the args are dicts due to native support for ros2 message to dict conversion: 
         """
+        
         feedback = {
             "transforms": transforms,
             "joint_states": jointstates,
@@ -1091,5 +1100,10 @@ class CoraServer(CoraInterface):
             lossy codecs like JPEG. Default ``90``.
         :type quality: int
         """
-        payload = pt.image_to_bytes(image, encoding=encoding, quality=quality)
+        image = ImageMessage(encoding, 
+                             image.shape, 
+                             image.dtype, 
+                             image.tolist(), 
+                             quality)
+        payload = pt.encode(image)
         self._socket_send(self.sockets["video_socket"], payload)
