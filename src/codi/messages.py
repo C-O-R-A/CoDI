@@ -183,6 +183,10 @@ class FeedbackMessage(BaseModel):
     joint_states: JointStates
     status: MoveStatus
 
+    model_config = {
+        "use_enum_values": True
+    }
+
 
 class ConfigMessage(BaseModel):
     """Configuration payload for motion and sensor settings.

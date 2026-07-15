@@ -341,7 +341,7 @@ class CoraInterface:
         :type socket_: dict
         :param payload: Data to send; will be encoded if not already ``bytes``.
         """
-        if self._running:
+        if self._running and socket_.get("alive"):
             try:
                 if self._is_socket_alive(socket_["socket"], 1) is False:
                     raise OSError("socket not alive")
@@ -696,7 +696,6 @@ class CoraClient(CoraInterface):
             ])
 
         feedback: FeedbackMessage = self.get_info("states_socket")
-        feedback_object = FeedbackObject()
         
         # Joint States
         joint_states = feedback.joint_states
@@ -710,10 +709,9 @@ class CoraClient(CoraInterface):
             joint_states_obj = JointStateObject(joint_position, velocity, effort)
             joint_states_dict[name] = joint_states_obj
         
-        feedback_object.joint_states = joint_states_dict
         
         # Transforms
-        transforms = feedback.transforms
+        transforms = feedback.transforms.transforms
         robot_states = []
         
         for tf in transforms:
@@ -722,7 +720,7 @@ class CoraClient(CoraInterface):
             t = tf.transform.translation
             q = tf.transform.rotation
             tf_mat = np.eye(4)
-            tf_mat[:3, :3] = _quat2mat([q.w, q.x, q.y, q.z])
+            tf_mat[:3, :3] = _quat2mat(q.w, q.x, q.y, q.z)
             tf_mat[:3, 3] = [t.x, t.y, t.z]
             
             transforms_obj = TransformObject(
@@ -734,7 +732,9 @@ class CoraClient(CoraInterface):
             )
             robot_states.append(transforms_obj)
 
-        feedback_object.transforms = robot_states    
+        feedback_object = FeedbackObject(transforms=robot_states, 
+                                         joint_states=joint_states_dict, 
+                                         status=feedback.status)
         
         feedback_object.status = feedback.status
         return feedback_object
