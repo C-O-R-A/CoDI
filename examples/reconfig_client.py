@@ -1,3 +1,7 @@
+"""
+    DEPRECATED
+"""
+
 import codi.runtime as rt
 import time
 from pathlib import Path

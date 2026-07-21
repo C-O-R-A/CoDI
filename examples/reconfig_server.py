@@ -1,3 +1,7 @@
+"""
+    DEPRECATED
+"""
+
 from codi import CoraServer
 import time
 from pathlib import Path
