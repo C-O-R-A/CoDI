@@ -108,6 +108,24 @@ def test_protocol_round_trips_image_payloads():
     assert np.array(decoded.data).reshape(decoded.shape).shape == (2, 2, 3)
 
 
+def test_protocol_accepts_nested_image_data_from_opencv():
+    pixels = np.array([[[10, 20, 30], [40, 50, 60]], [[70, 80, 90], [100, 110, 120]]], dtype=np.uint8)
+    image = ImageMessage(
+        encoding="jpeg",
+        shape=pixels.shape,
+        dtype=str(pixels.dtype),
+        data=pixels.tolist(),
+        quality=90,
+    )
+
+    raw = pt.encode(image)
+    decoded = pt.decode(raw, ImageMessage)
+
+    assert decoded.shape == (2, 2, 3)
+    assert decoded.data == pixels.tolist()
+    assert np.array(decoded.data).shape == pixels.shape
+
+
 def test_server_send_frame_uses_latest_config(monkeypatch):
     server = CoraServer(
         host="localhost",

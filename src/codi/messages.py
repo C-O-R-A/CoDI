@@ -115,13 +115,13 @@ class ImageMessage(BaseModel):
         encoding: Image encoding format (e.g. 'jpeg' or 'png').
         shape: Shape of the image (height, width, channels).
         dtype: Data type of the image array.
-        data: Raw encoded image bytes.
+        data: Raw pixel values, which are nested lists for RGB/BGR images.
         quality: JPEG quality level (0-100).
     """
     encoding: str = Field('png', description="Image encoding format (e.g., 'jpeg', 'png')")
-    shape: tuple = Field(..., description="Shape of the image (height, width, channels)")
+    shape: tuple[int, ...] = Field(..., description="Shape of the image (height, width, channels)")
     dtype: str = Field(..., description="Data type of the image (e.g., 'uint8')")
-    data: list[int] = Field(..., description="Image")
+    data: list = Field(..., description="Image pixel data; may be nested per channel/row")
     quality: int = Field(95, description="Image quality (0-100)")
 
 

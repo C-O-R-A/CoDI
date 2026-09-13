@@ -1106,6 +1106,9 @@ class CoraServer(CoraInterface):
         :type quality: int
         """
 
+        latest_config = self.get_msg("config_socket") or self.config_msg
+        self.config_msg = latest_config or ConfigMessage()
+
         if self.config_msg.enable_camera is False:
             print("Camera is disabled; not sending frame")
             return
@@ -1113,7 +1116,7 @@ class CoraServer(CoraInterface):
         image = ImageMessage(
             encoding=encoding,
             shape=image.shape,
-            dtype=image.dtype,
+            dtype=str(image.dtype),
             data=image.tolist(),
             quality=quality,
         )
