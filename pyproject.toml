@@ -7,9 +7,12 @@ name = "codi"
 dynamic = ["version"]
 dependencies = [
   "numpy>=1.23",
-  "msgpack>=1.0",
   "opencv-python>=4.8",
   "PyYAML>=6.0",
+    "pydantic",
+    "pynput",
+    "pytest>=7.4",
+    "setuptools",
 ]
 [tool.setuptools.packages.find]
 where = ["src"]

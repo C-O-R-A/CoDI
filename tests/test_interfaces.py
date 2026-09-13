@@ -62,9 +62,20 @@ def test_cora_client_configure_and_update_options(interface_kwargs, monkeypatch)
     client.configure_robot(use_camera=True)
     assert client.sockets["states_socket"]["thread"]["active"] is True
     assert client.sockets["video_socket"]["thread"]["active"] is True
-    
+
     client.configure_robot(use_camera=False)
     assert client.sockets["video_socket"]["thread"]["active"] is False
+
+
+def test_cora_client_rejects_legacy_sensor_flag(interface_kwargs, monkeypatch):
+    monkeypatch.setattr("socket.gethostbyname", lambda host: "127.0.0.1")
+
+    client = CoraClient(**interface_kwargs)
+    client._running = True
+    client.sockets["config_socket"]["alive"] = True
+
+    with pytest.raises(ValueError, match="Extra inputs are not permitted"):
+        client.configure_robot(use_camera=True, legacy_sensor_flag=True)
 
 
 def test_cora_server_initializes_server_state(interface_kwargs, monkeypatch):

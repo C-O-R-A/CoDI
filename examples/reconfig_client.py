@@ -1,8 +1,5 @@
-"""
-    DEPRECATED
-"""
-
 import codi.runtime as rt
+from codi.codi_enums import GoalSpace, InterfaceType
 import time
 from pathlib import Path
 
@@ -14,8 +11,14 @@ rt.start_client(str(CONFIG))
 client = rt.get_client()
 time.sleep(2)
 
-print('reconfiguring cora client')
-client.configure_robot(use_controller=True, use_camera=True, use_vision=True)
+print("reconfiguring cora client")
+client.configure_robot(
+    use_camera=True,
+    rt=True,
+    space=GoalSpace.TS,
+    interface_type=InterfaceType.POSITION,
+    target="end_effector",
+)
 last_state = None
 
 while True:

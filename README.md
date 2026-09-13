@@ -172,8 +172,7 @@ For most applications, the provided example config files under `./config/` can b
   "video_port": <video port>,
   "command_port": <command port>,
   "states_port": <states port>,
-  "config_port": <config port>,
-  "vision_port": <vision port>
+  "config_port": <config port>
 }
 ```
 
@@ -184,7 +183,6 @@ video_port: <video port>
 command_port: <command port>
 states_port: <states port>
 config_port: <config port>
-vision_port: <vision port>
 ```
 ---
 

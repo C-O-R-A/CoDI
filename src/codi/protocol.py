@@ -8,8 +8,6 @@ payloads for use with OpenCV.
 from pydantic import BaseModel
 from typing import TypeVar, Type
 
-from codi.messages import ImageMessage
-
 T = TypeVar("T", bound=BaseModel)
 
 

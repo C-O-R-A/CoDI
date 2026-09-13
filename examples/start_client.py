@@ -1,7 +1,3 @@
-"""
-    DEPRECATED
-"""
-
 import codi.runtime as rt
 from pathlib import Path
 

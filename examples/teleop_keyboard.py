@@ -1,8 +1,5 @@
-"""
-    DEPRECATED
-"""
-
 import codi.runtime as rt
+from codi.codi_enums import GoalSpace, InterfaceType
 import time
 from pathlib import Path
 import numpy as np
@@ -54,45 +51,32 @@ vectors = {
 
 def command_joint(vector):
     client.send_command(
-        True,
-        "JS",
-        "velocity",
-        "gripper",
-        0.0,
-        np.array(vector),
-        predef_pose=None,
-        verbose=False,
+        joint_command=vector,
+        interface_type=InterfaceType.VELOCITY,
+        rt=True,
+        space=GoalSpace.JS,
     )
 
 
-def command_speed(vector, space="TS"):
+def command_robot(vector):
     vec = vector + [1.0]
-    command = np.array([vec, [0, 0, 0, 0]])
+    command = [vec, [0, 0, 0, 0]]
     client.send_command(
-        True,
-        space,
-        "velocity",
-        "end_effector",
-        0.0,
-        command,
-        predef_pose=None,
-        verbose=False,
+        pose_command=command,
+        interface_type=InterfaceType.VELOCITY,
+        rt=True,
+        space=GoalSpace.TS,
+        target="end_effector"
     )
 
 
 def switch_space(space):
-    return "JS" if space == "TS" else "TS"
+    return GoalSpace.JS if space == GoalSpace.TS else GoalSpace.TS
 
 
 client.send_command(
-    rt=False,
-    space="TS",
-    interface_type="position",
-    target="Gripper",
-    gripper_command=0.01,
-    command=np.array([[0.60, 0.0, 0.2, 1], [0.0, 0.0, -0.7070727, 0.7070727]]),
-    predef_pose='standby',
-    verbose=False,
+    space=GoalSpace.TS,
+    predef_pose="standby",
 )
 
 time.sleep(10)
@@ -104,9 +88,7 @@ print(
     "  Ctrl+C to exit"
 )
 
-client.configure_robot(use_camera=True)
-
-space = "TS"
+space = GoalSpace.TS
 
 while True:
     # ---- MODE SWITCH (S ONLY) ----
@@ -118,17 +100,17 @@ while True:
     sent_command = False
 
     # ---- TASK SPACE ----
-    if space == "TS":
+    if space == GoalSpace.TS:
         for key in pressed_keys:
             if key in vectors:
-                command_speed(vectors[key], space=space)
+                command_robot(vectors[key])
                 sent_command = True
         # ---- STOP WHEN NO INPUT ----
         if not sent_command:
-            command_speed([0.0, 0.0, 0.0])
+            command_robot([0.0, 0.0, 0.0])
 
     # ---- JOINT SPACE ----
-    elif space == "JS":
+    elif space == GoalSpace.JS:
         velocity = VELOCITY_ANG
         for key in pressed_keys:
             if key == "-":
@@ -140,7 +122,7 @@ while True:
                 vec = [0.0] * 6
                 vec[idx] = velocity
                 print(f"Commanding joint {key} with velocity {vec[idx]}")
-                print('vector:', vec)
+                print("vector:", vec)
                 command_joint(vec)
                 sent_command = True
 

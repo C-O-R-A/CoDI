@@ -1,7 +1,3 @@
-"""
-    DEPRECATED
-"""
-
 from codi import CoraServer
 import time
 from pathlib import Path
@@ -14,9 +10,11 @@ cora_srv.start()
 last_config = None
 
 while True:
-    config = cora_srv.get_config()
     try:
-        print('Received Command:')
+        if not cora_srv.connected:
+            continue
+        config = cora_srv.get_config()
+        print('Received Config:')
         print(config)
         last_config = config
         time.sleep(1)

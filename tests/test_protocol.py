@@ -10,6 +10,7 @@ sys.path.append(str(ROOT))
 
 from codi import protocol as pt
 from codi.codi_enums import GoalSpace, InterfaceType, MoveStatus
+from codi.interfaces import CoraServer
 from codi.messages import CommandMessage, ConfigMessage, FeedbackMessage, ImageMessage
 
 
@@ -105,3 +106,30 @@ def test_protocol_round_trips_image_payloads():
     assert decoded.shape == (2, 2, 3)
     assert decoded.data == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
     assert np.array(decoded.data).reshape(decoded.shape).shape == (2, 2, 3)
+
+
+def test_server_send_frame_uses_latest_config(monkeypatch):
+    server = CoraServer(
+        host="localhost",
+        ports={
+            "command_port": 5000,
+            "states_port": 5001,
+            "video_port": 5002,
+            "config_port": 5003,
+        },
+    )
+    server._running = True
+    server.config_msg = ConfigMessage(enable_camera=False)
+    server.sockets["config_socket"]["message"] = ConfigMessage(enable_camera=True)
+    server.sockets["video_socket"]["alive"] = True
+
+    sent = {}
+
+    def fake_send(socket_, payload):
+        sent["payload"] = payload
+
+    monkeypatch.setattr(server, "_socket_send", fake_send)
+
+    server.send_frame(np.zeros((2, 2, 3), dtype=np.uint8))
+
+    assert "payload" in sent

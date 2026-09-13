@@ -1,7 +1,3 @@
-"""
-    DEPRECATED
-"""
-
 import codi.runtime as rt
 import time
 from pathlib import Path
@@ -14,7 +10,8 @@ CONFIG = HERE.parent / "config" / "local_client.json"
 rt.start_client(str(CONFIG))
 client = rt.get_client()
 time.sleep(2)
-client.configure_robot(use_camera=True)
+
+client.configure_robot(enable_camera=True)
 
 fps = 30
 

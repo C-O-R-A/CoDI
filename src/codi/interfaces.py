@@ -17,7 +17,7 @@ import time
 
 from . import protocol as pt
 
-from codi.exeptions import ProtocolSchemaError, ProtocolSemanticError
+from codi.exeptions import ProtocolSchemaError
 from codi.messages import (
     CommandMessage,
     FeedbackMessage,
@@ -27,12 +27,12 @@ from codi.messages import (
     TransformObject,
     FeedbackObject,
 )
-import cv2
+
 
 class CoraInterface:
     """Base class providing low-level socket management for Cora robot communication.
 
-    Manages five TCP sockets: command, states, video, config, and vision.
+    Manages the command, states, video, and config TCP sockets.
     Subclasses :class:`CoraClient` and :class:`CoraServer` extend this with
     client- and server-side lifecycle logic respectively.
 
@@ -47,7 +47,6 @@ class CoraInterface:
           - ``command_port`` -- port for sending/receiving commands
           - ``states_port`` -- port for sending/receiving robot states
           - ``config_port`` -- port for setting/receiving robot configuration
-          - ``vision_port`` -- port for receiving ArUco marker poses
 
     :raises ValueError: If the provided hostname cannot be resolved.
 
@@ -77,6 +76,7 @@ class CoraInterface:
         """
 
         self._running = False
+        self.connected = False
         self.interface_state_lock = threading.Lock()
         with self.interface_state_lock:
             self._interface_state = "unconnected"
@@ -321,6 +321,8 @@ class CoraInterface:
                     raise OSError("socket closed")
 
                 socket_["message"] = pt.decode(raw_data, socket_["model"])
+                if socket_["model"] is ConfigMessage:
+                    self.config_msg = socket_["message"]
 
             except OSError as e:
                 if socket_["alive"]:
@@ -355,12 +357,11 @@ class CoraInterface:
                     time.sleep(0.1)
                 return
 
-    def get_info(self, name):
+    def get_msg(self, name):
         """Return the most recently received message from a named socket.
 
         :param name: Socket key without the ``_socket`` suffix, e.g.
-            ``'command'``, ``'states'``, ``'video'``, ``'config'``,
-            or ``'vision'``.
+            ``'command'``, ``'states'``, ``'video'``, or ``'config'``.
 
             .. note::
                 The full dict key is ``name + '_socket'``, so pass
@@ -379,7 +380,7 @@ class CoraClient(CoraInterface):
     Extends :class:`CoraInterface` with a lifecycle handler that
     automatically reconnects, configures, and sets up the robot connection
     after any drop. Provides the public API for sending commands, receiving
-    states/frames/vision poses, and updating robot options.
+    states and frames, and updating robot options.
 
     :param filepath: Absolute path to a YAML or JSON config file.
     :type filepath: str, optional
@@ -389,8 +390,6 @@ class CoraClient(CoraInterface):
         - **use_controller** (*bool*) -- Enable gamepad/controller input.
           Default ``False``.
         - **use_camera** (*bool*) -- Enable video streaming. Default ``False``.
-        - **use_vision** (*bool*) -- Enable ArUco marker detection.
-          Default ``False``.
     """
 
     def __init__(self, filepath: str = None, **kwargs):
@@ -495,6 +494,7 @@ class CoraClient(CoraInterface):
             socket_["alive"] = True
 
         print("Connected to Cora Server")
+        self.connected = True
 
     def configure(self):
         """Half-close directional sockets to enforce read-only/write-only modes.
@@ -529,10 +529,9 @@ class CoraClient(CoraInterface):
     def init_threads(self):
         """Register thread metadata and targets for the receive sockets.
 
-        Populates the ``thread`` sub-dict for ``video_socket``,
-        ``states_socket``, and ``vision_socket`` with targets pointing to
-        :meth:`receive_frame`, :meth:`receive_states`, and
-        :meth:`receive_vision_poses` respectively.
+        Populates the ``thread`` sub-dict for ``video_socket`` and
+        ``states_socket`` with targets pointing to
+        :meth:`receive_frame` and :meth:`receive_states` respectively.
 
         Does **not** start any threads; call :meth:`start_thread` or
         :meth:`update_options` for that.
@@ -626,11 +625,9 @@ class CoraClient(CoraInterface):
                 continue
 
     def kill_options(self):
-        """Disable all optional feature flags.
+        """Disable optional feature flags used by the client.
 
-        Sets :attr:`use_controller`, :attr:`use_camera`, and
-        :attr:`use_vision` to ``False``. Called by :meth:`cleanup` before
-        tearing down threads.
+        Called by :meth:`cleanup` before tearing down threads.
         """
         self.use_camera = False
 
@@ -652,8 +649,8 @@ class CoraClient(CoraInterface):
         """Reconcile running threads with current feature flags.
 
         Builds the set of sockets that should be active based on
-        :attr:`use_vision`, :attr:`use_camera`, and always-on
-        ``states_socket``, then calls :meth:`reconcile_threads`.
+        :attr:`use_camera` and the always-on ``states_socket``, then calls
+        :meth:`reconcile_threads`.
 
         Call this after changing any ``use_*`` attribute to apply the update.
         """
@@ -688,15 +685,18 @@ class CoraClient(CoraInterface):
 
         :returns: Decoded pose feedback, or ``None`` if none has arrived yet.
         """
-        def _quat2mat(w, x, y, z):
-            return np.array([
-                [1 - 2*(y*y + z*z),     2*(x*y - z*w),     2*(x*z + y*w)],
-                [    2*(x*y + z*w), 1 - 2*(x*x + z*z),     2*(y*z - x*w)],
-                [    2*(x*z - y*w),     2*(y*z + x*w), 1 - 2*(x*x + y*y)],
-            ])
 
-        feedback: FeedbackMessage = self.get_info("states_socket")
-        
+        def _quat2mat(w, x, y, z):
+            return np.array(
+                [
+                    [1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+                    [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+                    [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)],
+                ]
+            )
+
+        feedback: FeedbackMessage = self.get_msg("states_socket")
+
         # Joint States
         joint_states = feedback.joint_states
         joint_states_dict = {}
@@ -708,12 +708,11 @@ class CoraClient(CoraInterface):
 
             joint_states_obj = JointStateObject(joint_position, velocity, effort)
             joint_states_dict[name] = joint_states_obj
-        
-        
+
         # Transforms
         transforms = feedback.transforms.transforms
         robot_states = []
-        
+
         for tf in transforms:
             parent = tf.header.frame_id
             child = tf.child_frame_id
@@ -722,7 +721,7 @@ class CoraClient(CoraInterface):
             tf_mat = np.eye(4)
             tf_mat[:3, :3] = _quat2mat(q.w, q.x, q.y, q.z)
             tf_mat[:3, 3] = [t.x, t.y, t.z]
-            
+
             transforms_obj = TransformObject(
                 parent,
                 child,
@@ -732,10 +731,12 @@ class CoraClient(CoraInterface):
             )
             robot_states.append(transforms_obj)
 
-        feedback_object = FeedbackObject(transforms=robot_states, 
-                                         joint_states=joint_states_dict, 
-                                         status=feedback.status)
-        
+        feedback_object = FeedbackObject(
+            transforms=robot_states,
+            joint_states=joint_states_dict,
+            status=feedback.status,
+        )
+
         feedback_object.status = feedback.status
         return feedback_object
 
@@ -759,15 +760,14 @@ class CoraClient(CoraInterface):
             arrived yet.
         :rtype: numpy.ndarray or None
         """
-        image_msg = self.get_info("video_socket")
-        image = np.array(
-            np.reshape(
-                image_msg.data, 
-                image_msg.shape, 
-                dtype=image_msg.dtype
-                )
+        image_msg = self.get_msg("video_socket")
+        if image_msg is None:
+            return None
+        else:
+            image = np.array(
+                np.reshape(image_msg.data, image_msg.shape, dtype=image_msg.dtype)
             )
-        return image
+            return image
 
     def send_command(
         self,
@@ -782,33 +782,31 @@ class CoraClient(CoraInterface):
         :param:     joint_command
         :param:     interface_type
         :param:     rt
-        :param:     target 
-        :param:     gripper_command 
+        :param:     target
+        :param:     gripper_command
         :param:     predef_pose
         """
         try:
             payload = pt.encode(CommandMessage(**kwargs))
-            
+
         except Exception as e:
-            raise ProtocolSchemaError(
-                f"Invalid command: {e}"
-            ) from e
+            raise ProtocolSchemaError(f"Invalid command: {e}") from e
         self._socket_send(self.sockets["command_socket"], payload)
 
     def configure_robot(self, **kwargs):
         """Update feature flags and send the new configuration to the server.
 
-        Updates :attr:`use_controller`, :attr:`use_camera`, and
-        :attr:`use_vision` from ``kwargs``, calls :meth:`update_options` to
-        reconcile threads, then encodes and sends the config payload over
+        Accepts the active client flags, filters deprecated compatibility
+        arguments, maps legacy ``use_camera`` values to the config schema,
+        reconciles threads, then encodes and sends the config payload over
         ``config_socket``.
 
         :param kwargs:
             - **use_controller** (*bool*) -- Enable gamepad input.
             - **use_camera** (*bool*) -- Enable video streaming.
-            - **use_vision** (*bool*) -- Enable ArUco marker detection.
         """
-        self.use_camera = kwargs.get("use_camera")
+
+        self.use_camera = bool(kwargs.get("enable_camera", self.use_camera))
         self.update_options()
 
         config_msg = ConfigMessage(**kwargs)
@@ -822,9 +820,9 @@ class CoraClient(CoraInterface):
 class CoraServer(CoraInterface):
     """Server-side interface that accepts connections from a :class:`CoraClient`.
 
-    Binds all five sockets, listens for the client, and exposes methods to
-    push state, vision, and video data back to the client while receiving
-    commands and configuration updates.
+    Binds the command, states, video, and config sockets, listens for the
+    client, and exposes methods to push state and video data back to the
+    client while receiving commands and configuration updates.
 
     The server's lifecycle handler automatically re-accepts a new client
     connection after a disconnect, making it resilient to client restarts.
@@ -843,7 +841,7 @@ class CoraServer(CoraInterface):
         self.command_lock = threading.Lock()
         self.config_lock = threading.Lock()
         self.use_video = False
-        self.config_msg = (self.use_video)
+        self.config_msg = ConfigMessage()
         self.threaded_sockets = ["command_socket", "config_socket"]
         return
 
@@ -892,7 +890,7 @@ class CoraServer(CoraInterface):
 
                 if socket_name == "command_socket":
                     self.sockets[socket_name]["thread"]["target"] = self.receive_command
-    
+
                 elif socket_name == "config_socket":
                     self.sockets[socket_name]["thread"]["target"] = self.receive_config
 
@@ -1011,6 +1009,7 @@ class CoraServer(CoraInterface):
             socket_["alive"] = True
 
         print("All client connections established")
+        self.connected = True
 
     def cleanup(self):
         """Shut down and close all accepted client connections.
@@ -1049,7 +1048,7 @@ class CoraServer(CoraInterface):
 
         :returns: Decoded command pydantic model, or ``None`` if no command has arrived.
         """
-        return self.get_info("command_socket")
+        return self.get_msg("command_socket")
 
     def receive_config(self):
         """Continuously receive configuration updates from the client.
@@ -1070,24 +1069,25 @@ class CoraServer(CoraInterface):
         :returns: Decoded configuration pydantic model, or ``None`` if none
             has arrived yet.
         """
-        return self.get_info("config_socket")
+        latest_config = self.get_msg("config_socket")
+        if latest_config is not None:
+            self.config_msg = latest_config
+        return self.config_msg
 
-    def send_state(
-        self, transforms: dict, jointstates: dict, status: int
-    ):
+    def send_state(self, transforms: dict, jointstates: dict, status: int):
         """Encode and send the current robot state to the client.
 
         :param transforms: transforms of the robot as dict
         :param jointstates: joint states of the robot as a dict
         :param status: status of the robot
-        
-        :note the args are dicts due to native support for ros2 message to dict conversion: 
+
+        :note the args are dicts due to native support for ros2 message to dict conversion:
         """
-        
+
         feedback = {
             "transforms": transforms,
             "joint_states": jointstates,
-            "status": status
+            "status": status,
         }
         feedback_msg = FeedbackMessage.model_validate(feedback)
         payload = pt.encode(feedback_msg)
@@ -1105,10 +1105,18 @@ class CoraServer(CoraInterface):
             lossy codecs like JPEG. Default ``90``.
         :type quality: int
         """
-        image = ImageMessage(encoding, 
-                             image.shape, 
-                             image.dtype, 
-                             image.tolist(), 
-                             quality)
+
+        if self.config_msg.enable_camera is False:
+            print("Camera is disabled; not sending frame")
+            return
+
+        image = ImageMessage(
+            encoding=encoding,
+            shape=image.shape,
+            dtype=image.dtype,
+            data=image.tolist(),
+            quality=quality,
+        )
+
         payload = pt.encode(image)
         self._socket_send(self.sockets["video_socket"], payload)

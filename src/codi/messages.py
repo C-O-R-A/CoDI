@@ -163,8 +163,9 @@ class CommandMessage(BaseModel):
         """
         has_pose = self.pose_command is not None
         has_joint = self.joint_command is not None
+        has_predef = self.predef_pose is not None
 
-        if has_pose == has_joint:
+        if has_pose == has_joint and has_pose == has_predef:
             raise ValueError(
                 "Exactly one of 'pose_command' or 'joint_command' must be provided"
             )
@@ -199,12 +200,11 @@ class ConfigMessage(BaseModel):
         target: Target frame or component identifier.
         enable_camera: Whether camera sensing is enabled.
     """
-    named_state: Optional[str] = None
-    rt: Optional[bool] = None
+    rt: Optional[bool] = False
     space: Optional[GoalSpace] = GoalSpace.TS
     interface_type: Optional[InterfaceType] = InterfaceType.POSITION
     target: Optional[str] = None
-    enable_camera: Optional[bool] = None
+    enable_camera: Optional[bool] = False
     
     model_config = {
         "use_enum_values": True
@@ -281,4 +281,3 @@ class FeedbackObject():
             current = tf.parent
 
         return result
-    
