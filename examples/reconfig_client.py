@@ -1,3 +1,13 @@
+"""Example client that reconfigures the robot runtime before continuing.
+
+This script starts a local CoDI client, reconfigures the robot with camera and
+control settings, and then keeps the process alive while the runtime remains active.
+It demonstrates a configuration change rather than a motion loop.
+
+Usage:
+    python examples/reconfig_client.py
+"""
+
 import codi.runtime as rt
 from codi.codi_enums import GoalSpace, InterfaceType
 import time

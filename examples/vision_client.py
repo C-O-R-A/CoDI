@@ -1,3 +1,14 @@
+"""Example client that receives and displays camera frames from the robot.
+
+This script starts a local CoDI client, configures the camera stream, and renders any
+incoming frames in an OpenCV window. It is useful for validating that the camera feed
+is reachable and being streamed correctly.
+
+Usage:
+    python examples/vision_client.py
+    Press 'q' in the frame window to quit.
+"""
+
 import codi.runtime as rt
 import time
 from pathlib import Path

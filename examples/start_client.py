@@ -1,3 +1,13 @@
+"""Minimal example that keeps a CoDI client alive.
+
+This script starts a local client using the default client configuration and blocks
+until the connection is terminated. It is a lightweight example for keeping the
+runtime process active in a headless environment.
+
+Usage:
+    python examples/start_client.py
+"""
+
 import codi.runtime as rt
 from pathlib import Path
 

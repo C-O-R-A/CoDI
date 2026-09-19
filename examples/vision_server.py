@@ -1,5 +1,11 @@
-"""
-    DEPRECATED
+"""Example server that streams frames from a local webcam to CoDI clients.
+
+This script captures frames from the default webcam and publishes them through the
+example server configuration. It demonstrates how to send live camera data to a client
+for display or processing.
+
+Usage:
+    python examples/vision_server.py
 """
 
 from codi import CoraServer

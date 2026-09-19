@@ -1,3 +1,13 @@
+"""Example server that periodically fetches and prints the robot configuration.
+
+This script connects to a CoDI server using the example configuration and polls the
+runtime configuration. It is useful for verifying how robot settings are exposed and
+updated over time.
+
+Usage:
+    python examples/reconfig_server.py
+"""
+
 from codi import CoraServer
 import time
 from pathlib import Path

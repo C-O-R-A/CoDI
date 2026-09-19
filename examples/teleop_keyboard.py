@@ -1,3 +1,19 @@
+"""Keyboard teleoperation example for a CoDI client.
+
+This script starts a local client and binds keyboard input to task-space or joint-space
+velocity commands. Press keys to move the robot in the current control space and use the
+'S' key to switch between spaces.
+
+Usage:
+    python examples/teleop_keyboard.py
+
+Controls:
+    W/A/D/X/Q/E/Z/C  - motion in task space
+    1-6              - joint velocity selection in joint space
+    S                - switch between task and joint space
+    Ctrl+C           - exit
+"""
+
 import codi.runtime as rt
 from codi.codi_enums import GoalSpace, InterfaceType
 import time

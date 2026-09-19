@@ -1,3 +1,13 @@
+"""Example server focused on receiving and printing command messages.
+
+The server starts with the example configuration and continuously polls for new
+incoming commands. This is useful when you want to inspect the payload structure of
+CoDI command objects without sending any robot motion itself.
+
+Usage:
+    python examples/command_receive_server.py
+"""
+
 from codi import CoraServer
 from codi.messages import CommandMessage
 import time

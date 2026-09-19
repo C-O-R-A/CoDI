@@ -1,3 +1,13 @@
+"""Example client that sends a simple motion command and reads robot feedback.
+
+This script starts a CoDI client configured with the local client profile, sends a
+position command to the robot, and prints any returned transform feedback. It is a
+minimal example of a client-driven command loop.
+
+Usage:
+    python examples/example_client.py
+"""
+
 import codi.runtime as rt
 from codi.codi_enums import InterfaceType
 from codi.exeptions import ProtocolSchemaError

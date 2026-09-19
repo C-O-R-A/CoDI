@@ -1,3 +1,13 @@
+"""Example server that publishes a simulated robot state and reads incoming commands.
+
+This script starts a CoDI server using the example server configuration and streams
+basic joint-state and transform data. It then polls for incoming commands and prints
+any received messages to the terminal.
+
+Usage:
+    python examples/example_server.py
+"""
+
 from codi import CoraServer
 from codi.codi_enums import MoveStatus
 import time
