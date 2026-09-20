@@ -1,0 +1,186 @@
+<mxfile host="Electron" agent="Claude">
+  <diagram name="CoDI Architecture (Detailed)" id="codi-architecture-detailed-v2">
+    <mxGraphModel dx="2020" dy="1227" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1700" pageHeight="1000" background="#0D1117" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;fontFamily=Inter;fontStyle=1;fontSize=24;fontColor=#FFFFFF;align=center;verticalAlign=middle;" value="CoDI Architecture" vertex="1">
+          <mxGeometry height="36" width="480" x="610" y="8" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" parent="1" style="text;html=1;fontFamily=Space Grotesk;fontSize=12;fontColor=#8B949E;align=center;verticalAlign=middle;" value="Python SDK for TCP communication between a client PC and a Cora robot (C-O-R-A/CoDI, src/codi)" vertex="1">
+          <mxGeometry height="24" width="780" x="460" y="44" as="geometry" />
+        </mxCell>
+        <mxCell id="basenote" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#161B22;strokeColor=#58A6FF;strokeWidth=2;fontFamily=Inter;fontStyle=1;fontSize=12;fontColor=#FFFFFF;arcSize=10;" value="Shared base class: CoraInterface&#xa;socket lifecycle mgmt, 4-byte length-prefixed framing (protocol.py), threaded receive loops" vertex="1">
+          <mxGeometry height="64" width="400" x="650" y="84" as="geometry" />
+        </mxCell>
+        <mxCell id="clientContainer" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#58A6FF;strokeWidth=1;dashed=1;arcSize=4;verticalAlign=top;" value=" " vertex="1">
+          <mxGeometry height="506" width="520" x="60" y="190" as="geometry" />
+        </mxCell>
+        <mxCell id="clientHeader" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#0D1117;strokeColor=none;fontFamily=Inter;fontStyle=1;fontSize=14;fontColor=#58A6FF;align=left;verticalAlign=middle;" value="CLIENT PC: codi.CoraClient" vertex="1">
+          <mxGeometry height="26" width="480" x="80" y="196" as="geometry" />
+        </mxCell>
+        <mxCell id="clientCore" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#161B22;strokeColor=#58A6FF;strokeWidth=2;fontFamily=Inter;fontStyle=1;fontSize=12;fontColor=#FFFFFF;arcSize=10;" value="CoraClient(CoraInterface)&#xa;use_controller, use_camera flags&#xa;loads host + 4 ports from .yaml/.json config at init" vertex="1">
+          <mxGeometry height="60" width="460" x="90" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="clientLifecycle" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#161B22;strokeColor=#58A6FF;strokeWidth=1.5;fontFamily=JetBrains Mono;fontSize=11;fontColor=#C9D1D9;arcSize=8;" value="_lifecycle_handler() thread&#xa;disconnected → connected → configured → ready&#xa;connect() (retry x100) · configure() (half-shuts socket dir.) · setup()&#xa;auto tears down + reconnects if any socket dies" vertex="1">
+          <mxGeometry height="72" width="460" x="90" y="302" as="geometry" />
+        </mxCell>
+        <mxCell id="clientSendAPI" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0D1117;strokeColor=#58A6FF;strokeWidth=2;fontFamily=JetBrains Mono;fontSize=11;fontColor=#FFFFFF;arcSize=8;align=left;spacingLeft=10;" value="Send API  —  Client → Server  (sync calls)&#xa;send_command(pose_command | joint_command | predef_pose,&#xa;   interface_type, rt, target, gripper_command)&#xa;configure_robot(enable_camera, space, rt, target, ...)" vertex="1">
+          <mxGeometry height="80" width="460" x="90" y="386" as="geometry" />
+        </mxCell>
+        <mxCell id="clientStatesThread" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#161B22;strokeColor=#3FB950;strokeWidth=1.5;fontFamily=JetBrains Mono;fontSize=11;fontColor=#C9D1D9;arcSize=8;" value="states_socket thread&#xa;receive_states()&#xa;→ get_states() → FeedbackObject&#xa;always on" vertex="1">
+          <mxGeometry height="80" width="220" x="90" y="486" as="geometry" />
+        </mxCell>
+        <mxCell id="clientVideoThread" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#161B22;strokeColor=#D29922;strokeWidth=1.5;fontFamily=JetBrains Mono;fontSize=11;fontColor=#C9D1D9;arcSize=8;" value="video_socket thread&#xa;receive_frame()&#xa;→ get_frame() → np.ndarray&#xa;only while use_camera=True" vertex="1">
+          <mxGeometry height="80" width="220" x="330" y="486" as="geometry" />
+        </mxCell>
+        <mxCell id="clientNote" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0D1117;strokeColor=#8B949E;strokeWidth=1.5;dashed=1;fontFamily=JetBrains Mono;fontSize=10;fontColor=#8B949E;arcSize=8;align=left;spacingLeft=10;" value="note: use_controller is accepted and stored on CoraClient, but nothing in src/codi currently reads it — no gamepad/joystick polling is wired up in this version" vertex="1">
+          <mxGeometry height="90" width="460" x="90" y="586" as="geometry" />
+        </mxCell>
+        <mxCell id="ic1" edge="1" parent="1" source="clientCore" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#8B949E;strokeWidth=1;endArrow=open;endFill=1;dashed=1;" target="clientLifecycle">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ic2" edge="1" parent="1" source="clientCore" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#8B949E;strokeWidth=1;endArrow=open;endFill=1;dashed=1;fontFamily=JetBrains Mono;fontSize=9;fontColor=#8B949E;exitX=0.15;exitY=1;entryX=0.15;entryY=0;" target="clientSendAPI" value="sync calls">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ic3" edge="1" parent="1" source="clientLifecycle" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#8B949E;strokeWidth=1;endArrow=open;endFill=1;dashed=1;fontFamily=JetBrains Mono;fontSize=9;fontColor=#8B949E;exitX=0.3;exitY=1;entryX=0.5;entryY=0;" target="clientStatesThread" value="spawns">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ic4" edge="1" parent="1" source="clientLifecycle" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#8B949E;strokeWidth=1;endArrow=open;endFill=1;dashed=1;fontFamily=JetBrains Mono;fontSize=9;fontColor=#8B949E;exitX=0.85;exitY=1;entryX=0.5;entryY=0;" target="clientVideoThread" value="spawns">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="serverContainer" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#58A6FF;strokeWidth=1;dashed=1;arcSize=4;verticalAlign=top;" value="" vertex="1">
+          <mxGeometry height="506" width="520" x="1020" y="190" as="geometry" />
+        </mxCell>
+        <mxCell id="serverHeader" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#0D1117;strokeColor=none;fontFamily=Inter;fontStyle=1;fontSize=14;fontColor=#58A6FF;align=left;verticalAlign=middle;" value="CORA ROBOT: codi.CoraServer" vertex="1">
+          <mxGeometry height="26" width="480" x="1040" y="196" as="geometry" />
+        </mxCell>
+        <mxCell id="serverCore" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#161B22;strokeColor=#58A6FF;strokeWidth=2;fontFamily=Inter;fontStyle=1;fontSize=12;fontColor=#FFFFFF;arcSize=10;" value="CoraServer(CoraInterface)&#xa;loads host + 4 ports from .yaml/.json config at init" vertex="1">
+          <mxGeometry height="60" width="460" x="1050" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="serverLifecycle" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#161B22;strokeColor=#58A6FF;strokeWidth=1.5;fontFamily=JetBrains Mono;fontSize=11;fontColor=#C9D1D9;arcSize=8;" value="_lifecycle_handler() thread&#xa;disconnected → connected → ready&#xa;bind() + accept_connections() (backlog=1 per socket)&#xa;tears down + re-listens if command/config socket dies" vertex="1">
+          <mxGeometry height="72" width="460" x="1050" y="302" as="geometry" />
+        </mxCell>
+        <mxCell id="serverCommandThread" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#161B22;strokeColor=#58A6FF;strokeWidth=1.5;fontFamily=JetBrains Mono;fontSize=11;fontColor=#C9D1D9;arcSize=8;" value="command_socket thread&#xa;receive_command()&#xa;→ get_command() → CommandMessage" vertex="1">
+          <mxGeometry height="80" width="220" x="1050" y="386" as="geometry" />
+        </mxCell>
+        <mxCell id="serverConfigThread" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#161B22;strokeColor=#A371F7;strokeWidth=1.5;fontFamily=JetBrains Mono;fontSize=11;fontColor=#C9D1D9;arcSize=8;" value="config_socket thread&#xa;receive_config()&#xa;→ get_config() → ConfigMessage" vertex="1">
+          <mxGeometry height="80" width="220" x="1290" y="386" as="geometry" />
+        </mxCell>
+        <mxCell id="serverSendAPI" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0D1117;strokeColor=#58A6FF;strokeWidth=2;fontFamily=JetBrains Mono;fontSize=11;fontColor=#FFFFFF;arcSize=8;align=left;spacingLeft=10;" value="Send API  —  Server → Client  (sync calls)&#xa;send_state(transforms, joint_states, status: MoveStatus)&#xa;send_frame(image, encoding=&#39;jpeg&#39;, quality=90)" vertex="1">
+          <mxGeometry height="80" width="460" x="1050" y="486" as="geometry" />
+        </mxCell>
+        <mxCell id="rosBridge" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0D1117;strokeColor=#8B949E;strokeWidth=1.5;dashed=1;fontFamily=JetBrains Mono;fontSize=10;fontColor=#8B949E;arcSize=8;align=left;spacingLeft=10;" value="cora_common (separate repo) — codi_node&#xa;bridges CoraServer ⇄ ROS 2 graph — calls send_state()/send_frame(),&#xa;polls get_command()/get_config():&#xa;cora_moveit (trajectory exec, /joint_states, /tf)&#xa;cora_vision (camera_node, aruco_node → /aruco_pose)" vertex="1">
+          <mxGeometry height="90" width="460" x="1050" y="586" as="geometry" />
+        </mxCell>
+        <mxCell id="is1" edge="1" parent="1" source="serverCore" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#8B949E;strokeWidth=1;endArrow=open;endFill=1;dashed=1;" target="serverLifecycle">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="is2" edge="1" parent="1" source="serverLifecycle" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#8B949E;strokeWidth=1;endArrow=open;endFill=1;dashed=1;fontFamily=JetBrains Mono;fontSize=9;fontColor=#8B949E;exitX=0.3;exitY=1;entryX=0.5;entryY=0;" target="serverCommandThread" value="spawns">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="is3" edge="1" parent="1" source="serverLifecycle" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#8B949E;strokeWidth=1;endArrow=open;endFill=1;dashed=1;fontFamily=JetBrains Mono;fontSize=9;fontColor=#8B949E;exitX=0.85;exitY=1;entryX=0.5;entryY=0;" target="serverConfigThread" value="spawns">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="is4" edge="1" parent="1" source="serverCore" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#8B949E;strokeWidth=1;endArrow=open;endFill=1;dashed=1;fontFamily=JetBrains Mono;fontSize=9;fontColor=#8B949E;exitX=0.15;exitY=1;entryX=0.15;entryY=0;" target="serverSendAPI" value="sync calls">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="is5" edge="1" parent="1" source="serverSendAPI" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#8B949E;strokeWidth=1;endArrow=open;endFill=1;dashed=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" target="rosBridge">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_command" edge="1" parent="1" source="clientSendAPI" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#58A6FF;strokeWidth=2.5;fontFamily=JetBrains Mono;fontSize=10;fontColor=#C9D1D9;labelBackgroundColor=#0D1117;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="serverCommandThread" value="&lt;span&gt;TCP :5001 — command_socket · CommandMessage (JSON)&lt;br&gt;write-only&lt;/span&gt;">
+          <mxGeometry relative="1" x="-0.071" y="-24" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="646.17" y="410" />
+              <mxPoint x="646.17" y="360.75" />
+              <mxPoint x="919.5" y="360.75" />
+              <mxPoint x="919.5" y="426" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_config" edge="1" parent="1" source="clientSendAPI" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#A371F7;strokeWidth=2.5;startArrow=block;startFill=1;fontFamily=JetBrains Mono;fontSize=10;fontColor=#C9D1D9;labelBackgroundColor=#0D1117;exitX=1;exitY=0.7;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" target="serverConfigThread" value="&lt;span&gt;TCP :5003 — config_socket · ConfigMessage (JSON)&lt;br&gt;bidirectional&lt;/span&gt;">
+          <mxGeometry relative="1" x="-0.4687" y="-15" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="920" y="442" />
+              <mxPoint x="920" y="481.33" />
+              <mxPoint x="1290" y="481.33" />
+              <mxPoint x="1400" y="482" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_states" edge="1" parent="1" source="serverSendAPI" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#3FB950;strokeWidth=2.5;fontFamily=JetBrains Mono;fontSize=10;fontColor=#C9D1D9;labelBackgroundColor=#0D1117;exitX=0;exitY=0.3;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" target="clientStatesThread" value="&lt;span&gt;TCP :5002 — states_socket · FeedbackMessage (JSON)&lt;br&gt;joint_states, transforms, status · always-on&lt;/span&gt;">
+          <mxGeometry relative="1" x="-0.0907" y="15" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="946" y="510" />
+              <mxPoint x="946" y="596.04" />
+              <mxPoint x="200" y="596.04" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_video" edge="1" parent="1" source="serverSendAPI" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#D29922;strokeWidth=2.5;fontFamily=JetBrains Mono;fontSize=10;fontColor=#C9D1D9;labelBackgroundColor=#0D1117;exitX=0;exitY=0.7;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="clientVideoThread" value="&lt;span&gt;TCP :5000 — video_socket · ImageMessage (JSON, jpeg/png)&lt;br&gt;only if enable_camera&lt;/span&gt;">
+          <mxGeometry relative="1" x="0.2233" y="21" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="893.2" y="542" />
+              <mxPoint x="893.2" y="526" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_base_client" edge="1" parent="1" source="basenote" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#58A6FF;strokeWidth=1.5;endArrow=block;endFill=0;dashed=1;fontFamily=JetBrains Mono;fontSize=9;fontColor=#8B949E;exitX=0.1;exitY=1;entryX=0.5;entryY=0;" target="clientCore" value="extends">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="-30" as="offset" />
+            <Array as="points">
+              <mxPoint x="690" y="172.33" />
+              <mxPoint x="320" y="172.33" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_base_server" edge="1" parent="1" source="basenote" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#58A6FF;strokeWidth=1.5;endArrow=block;endFill=0;dashed=1;fontFamily=JetBrains Mono;fontSize=9;fontColor=#8B949E;exitX=0.9;exitY=1;entryX=0.5;entryY=0;" target="serverCore" value="extends">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="30" as="offset" />
+            <Array as="points">
+              <mxPoint x="1010" y="170.67" />
+              <mxPoint x="1280" y="170.67" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="protocolNote" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#161B22;strokeColor=#58A6FF;strokeWidth=1.5;fontFamily=JetBrains Mono;fontSize=11;fontColor=#C9D1D9;arcSize=8;align=left;spacingLeft=10;" value="Wire protocol (protocol.py)  —  used by both CoraClient and CoraServer via the shared CoraInterface base&#xa;Frame = 4-byte big-endian length prefix + JSON payload (_send / _receive in CoraInterface, _recv_exact loops recv() for partial reads)&#xa;encode(): Pydantic model → model_dump_json() → UTF-8 bytes        decode(): UTF-8 bytes → model_validate_json()&#xa;note: msgpack is a listed dependency but is not used by the current protocol — payloads are plain JSON" vertex="1">
+          <mxGeometry height="100" width="880" x="410" y="726" as="geometry" />
+        </mxCell>
+        <mxCell id="V4cRwPjnD9D9fSD5KQ6O-2" connectable="0" parent="1" style="group" value="" vertex="1">
+          <mxGeometry height="107" width="170" x="1489" y="68" as="geometry" />
+        </mxCell>
+        <mxCell id="legend" parent="V4cRwPjnD9D9fSD5KQ6O-2" style="text;html=1;fontFamily=Inter;fontStyle=1;fontSize=12;fontColor=#FFFFFF;align=left;verticalAlign=middle;" value="Channels" vertex="1">
+          <mxGeometry height="20" width="160" as="geometry" />
+        </mxCell>
+        <mxCell id="leg1sw" parent="V4cRwPjnD9D9fSD5KQ6O-2" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#58A6FF;strokeColor=none;" value="" vertex="1">
+          <mxGeometry height="14" width="14" y="24" as="geometry" />
+        </mxCell>
+        <mxCell id="leg1" parent="V4cRwPjnD9D9fSD5KQ6O-2" style="text;html=1;fontFamily=JetBrains Mono;fontSize=10;fontColor=#C9D1D9;align=left;verticalAlign=middle;" value="command  :5001" vertex="1">
+          <mxGeometry height="20" width="150" x="20" y="21" as="geometry" />
+        </mxCell>
+        <mxCell id="leg2sw" parent="V4cRwPjnD9D9fSD5KQ6O-2" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#A371F7;strokeColor=none;" value="" vertex="1">
+          <mxGeometry height="14" width="14" y="46" as="geometry" />
+        </mxCell>
+        <mxCell id="leg2" parent="V4cRwPjnD9D9fSD5KQ6O-2" style="text;html=1;fontFamily=JetBrains Mono;fontSize=10;fontColor=#C9D1D9;align=left;verticalAlign=middle;" value="config  :5003" vertex="1">
+          <mxGeometry height="20" width="150" x="20" y="43" as="geometry" />
+        </mxCell>
+        <mxCell id="leg3sw" parent="V4cRwPjnD9D9fSD5KQ6O-2" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#3FB950;strokeColor=none;" value="" vertex="1">
+          <mxGeometry height="14" width="14" y="68" as="geometry" />
+        </mxCell>
+        <mxCell id="leg3" parent="V4cRwPjnD9D9fSD5KQ6O-2" style="text;html=1;fontFamily=JetBrains Mono;fontSize=10;fontColor=#C9D1D9;align=left;verticalAlign=middle;" value="states  :5002" vertex="1">
+          <mxGeometry height="20" width="150" x="20" y="65" as="geometry" />
+        </mxCell>
+        <mxCell id="leg4sw" parent="V4cRwPjnD9D9fSD5KQ6O-2" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#D29922;strokeColor=none;" value="" vertex="1">
+          <mxGeometry height="14" width="14" y="90" as="geometry" />
+        </mxCell>
+        <mxCell id="leg4" parent="V4cRwPjnD9D9fSD5KQ6O-2" style="text;html=1;fontFamily=JetBrains Mono;fontSize=10;fontColor=#C9D1D9;align=left;verticalAlign=middle;" value="video  :5000" vertex="1">
+          <mxGeometry height="20" width="150" x="20" y="87" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
