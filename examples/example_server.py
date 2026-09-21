@@ -26,8 +26,7 @@ joint_positions = np.zeros(len(joint_names)).tolist()
 joint_velocities = np.zeros(len(joint_names)).tolist()
 joint_efforts = np.zeros(len(joint_names)).tolist()
 
-transforms = {
-    "transforms": [
+transforms = [
         {
             "header": {"stamp": {"sec": 0, "nanosec": 0}, "frame_id": "base_link"},
             "child_frame_id": "tool0",
@@ -36,8 +35,7 @@ transforms = {
                 "rotation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
             },
         }
-    ]
-}
+]
 
 joint_states = {
     "header": {"stamp": {"sec": 0, "nanosec": 0}, "frame_id": "base_link"},

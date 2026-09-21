@@ -1076,7 +1076,7 @@ class CoraServer(CoraInterface):
             self.config_msg = latest_config
         return self.config_msg
 
-    def send_state(self, transforms: dict, jointstates: dict, status: int):
+    def send_state(self, transforms: list[dict] | dict, jointstates: dict, status):
         """Encode and send the current robot state to the client.
 
         :param transforms: transforms of the robot as dict
@@ -1086,11 +1086,19 @@ class CoraServer(CoraInterface):
         :note the args are dicts due to native support for ros2 message to dict conversion:
         """
 
+        # Accept either a raw list of transform dicts (rosidl conversion)
+        # or a TFMessage-shaped dict (`{"transforms": [...]}`).
+        if isinstance(transforms, list):
+            transforms_field = {"transforms": transforms}
+        else:
+            transforms_field = transforms
+
         feedback = {
-            "transforms": transforms,
+            "transforms": transforms_field,
             "joint_states": jointstates,
             "status": status,
         }
+
         feedback_msg = FeedbackMessage.model_validate(feedback)
         payload = pt.encode(feedback_msg)
         self._socket_send(self.sockets["states_socket"], payload)
