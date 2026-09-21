@@ -60,7 +60,7 @@ class CoraInterface:
           config_port: 5003
     """
 
-    def __init__(self, filepath: str = None, **kwargs):
+    def __init__(self, filepath=None, **kwargs):
         """
         :param filepath: absolute path to json or yaml config file
         :type filepath: str
@@ -680,7 +680,7 @@ class CoraClient(CoraInterface):
             socket_=self.sockets["states_socket"],
         )
 
-    def get_states(self):
+    def get_states(self) -> FeedbackObject | None:
         """Return the most recently received robot state message.
 
         :returns: Decoded pose feedback, or ``None`` if none has arrived yet.
@@ -695,7 +695,7 @@ class CoraClient(CoraInterface):
                 ]
             )
 
-        feedback: FeedbackMessage = self.get_msg("states_socket")
+        feedback = self.get_msg("states_socket")
 
         # Joint States
         joint_states = feedback.joint_states
@@ -753,7 +753,7 @@ class CoraClient(CoraInterface):
             socket_=self.sockets["video_socket"],
         )
 
-    def get_frame(self):
+    def get_frame(self) -> NDArray | None:
         """Return the most recently received video frame.
 
         :returns: Decoded image (numpy array), or ``None`` if none has
@@ -792,6 +792,7 @@ class CoraClient(CoraInterface):
         except Exception as e:
             raise ProtocolSchemaError(f"Invalid command: {e}") from e
         self._socket_send(self.sockets["command_socket"], payload)
+        return
 
     def configure_robot(self, **kwargs):
         """Update feature flags and send the new configuration to the server.
@@ -815,6 +816,7 @@ class CoraClient(CoraInterface):
             self.sockets["config_socket"],
             payload,
         )
+        return
 
 
 class CoraServer(CoraInterface):
@@ -1043,7 +1045,7 @@ class CoraServer(CoraInterface):
             socket_=self.sockets["command_socket"],
         )
 
-    def get_command(self):
+    def get_command(self) -> CommandMessage | None:
         """Return the most recently received command from the client.
 
         :returns: Decoded command pydantic model, or ``None`` if no command has arrived.
@@ -1063,7 +1065,7 @@ class CoraServer(CoraInterface):
             socket_=self.sockets["config_socket"],
         )
 
-    def get_config(self):
+    def get_config(self) -> ConfigMessage | None:
         """Return the most recently received configuration from the client.
 
         :returns: Decoded configuration pydantic model, or ``None`` if none
